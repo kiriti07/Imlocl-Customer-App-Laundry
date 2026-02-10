@@ -1,0 +1,95 @@
+export type UserRole = 'customer' | 'partner';
+
+export type ServiceCategory = 'laundry' | 'stitching';
+
+export type PartnerType = 'laundry_store' | 'tailor' | 'designer' | 'delivery_rider';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  avatar?: string;
+  role: UserRole;
+  address?: string;
+}
+
+export interface LaundryStore {
+  id: string;
+  name: string;
+  image: string;
+  rating: number;
+  reviewCount: number;
+  distance: string;
+  deliveryTime: string;
+  address: string;
+  isOpen: boolean;
+  services: LaundryService[];
+  tags: string[];
+}
+
+export interface LaundryService {
+  id: string;
+  name: string;
+  price: number;
+  unit: string;
+  icon: string;
+}
+
+export interface StitchingRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerAvatar?: string;
+  title: string;
+  description: string;
+  outfitType: string;
+  budget: number;
+  images: string[];
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled';
+  createdAt: string;
+  bids: Bid[];
+  deadline?: string;
+}
+
+export interface Bid {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerAvatar?: string;
+  partnerRating: number;
+  price: number;
+  daysToComplete: number;
+  message: string;
+  createdAt: string;
+  isAccepted: boolean;
+}
+
+export interface Order {
+  id: string;
+  type: ServiceCategory;
+  storeName: string;
+  storeImage: string;
+  items: OrderItem[];
+  total: number;
+  status: 'pending' | 'confirmed' | 'processing' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  createdAt: string;
+  estimatedDelivery?: string;
+}
+
+export interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface CartItem {
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  unit: string;
+  storeId: string;
+  storeName: string;
+  serviceType: ServiceCategory;
+}
