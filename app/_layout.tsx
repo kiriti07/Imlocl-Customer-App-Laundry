@@ -1,3 +1,4 @@
+// app/_layout.tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -25,6 +26,14 @@ function RootLayoutNav() {
       <Stack.Screen name="stitching-request/[id]" options={{ title: 'Request' }} />
       <Stack.Screen name="post-request" options={{ presentation: 'modal', title: 'Post Request' }} />
       <Stack.Screen name="partner-dashboard" options={{ title: 'Partner Dashboard' }} />
+      
+      {/* Designer/stitching routes */}
+      <Stack.Screen name="designer/[id]" options={{ title: 'Designer Profile' }} />
+      <Stack.Screen name="design/[id]" options={{ title: 'Design Details' }} />
+      
+      {/* Requests route for designers to view and bid on customer requests */}
+      <Stack.Screen name="requests" options={{ headerShown: false }} />
+      
       <Stack.Screen name="+not-found" />
     </Stack>
   );
