@@ -1,5 +1,5 @@
 // app/(tabs)/stitching/designs/index.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,16 @@ import {
   FlatList,
   Pressable,
   TextInput,
-  Animated,
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Sparkles, Crown, Shirt, Baby, Heart, GraduationCap, Sun, Palette } from 'lucide-react-native';
+import { Search, Sparkles, Crown, Shirt, Baby, Heart, GraduationCap, Sun } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
-import { designs } from '@/mocks/designs';
 import DesignCard from '@/components/designer/DesignCard';
+
+const API_BASE_URL = "http://localhost:8080/api";
 
 const categoryIcons: Record<string, React.ReactNode> = {
   all: <Sparkles size={18} color={Colors.white} />,
@@ -49,29 +51,74 @@ const categories = [
 
 export default function DesignsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = Dimensions.get('window');
+
+  const GAP = 12;
+  const H_PADDING = 20;
+
+  // pick columns based on screen width
+  const columns =
+    width >= 1400 ? 8 :
+    width >= 1200 ? 7 :
+    width >= 1024 ? 6 :
+    width >= 820  ? 5 :
+    width >= 680  ? 4 :
+    width >= 520  ? 3 : 2;
+
+  // compute card width for those columns
+  const CARD_WIDTH =
+    (width - H_PADDING * 2 - GAP * (columns - 1)) / columns;
+
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [designs, setDesigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [meta, setMeta] = useState({ total: 0, trending: 0, new: 0 });
 
-  const trendingDesigns = designs.filter((d) => d.isTrending);
-  const newDesigns = designs.filter((d) => d.isNew);
+  useEffect(() => {
+    fetchDesigns();
+  }, [selectedCategory]);
 
-  const filteredDesigns = designs.filter((d) => {
-    const matchesCategory = selectedCategory === 'all' || d.category === selectedCategory;
-    const matchesSearch = !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+  const fetchDesigns = async () => {
+    try {
+      const url = `${API_BASE_URL}/public/designs?category=${selectedCategory}`;
+      console.log('Fetching designs from:', url);
+      const response = await fetch(url);
+      const data = await response.json();
+      console.log('Designs fetched:', data);
+      setDesigns(data.designs || []);
+      setMeta(data.meta || { total: 0, trending: 0, new: 0 });
+    } catch (error) {
+      console.error('Error fetching designs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const trendingDesigns = designs.filter((d: any) => d.isTrending);
+  const newDesigns = designs.filter((d: any) => d.isNew);
+
+  const filteredDesigns = designs.filter((d: any) => {
+    const matchesSearch = !searchQuery || 
+      d.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
   });
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View style={styles.titleContainer}>
-            <Palette size={28} color={Colors.accent} />
-            <View>
-              <Text style={styles.greeting}>Design Gallery</Text>
-              <Text style={styles.subtitle}>Browse Creation from our Tailors and Designers</Text>
-            </View>
+          <View>
+            <Text style={styles.greeting}>Discover Designs</Text>
+            <Text style={styles.subtitle}>Find your perfect style</Text>
           </View>
         </View>
         <View style={styles.searchContainer}>
@@ -86,14 +133,9 @@ export default function DesignsScreen() {
         </View>
       </View>
 
-      <Animated.ScrollView
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
       >
         <ScrollView
           horizontal
@@ -126,37 +168,45 @@ export default function DesignsScreen() {
 
         {!searchQuery && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Trending Now</Text>
-              <Text style={styles.sectionCount}>{trendingDesigns.length} designs</Text>
-            </View>
-            <FlatList
-              data={trendingDesigns}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <DesignCard design={item} variant="featured" />
-              )}
-              scrollEnabled
-            />
+            {trendingDesigns.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Trending Now</Text>
+                  <Text style={styles.sectionCount}>{meta.trending} designs</Text>
+                </View>
+                <FlatList
+                  data={trendingDesigns}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalList}
+                  keyExtractor={(item: any) => item.id}
+                  renderItem={({ item }) => (
+                    <DesignCard design={item} variant="featured" />
+                  )}
+                  scrollEnabled
+                />
+              </>
+            )}
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Just Arrived</Text>
-              <Text style={styles.sectionCount}>{newDesigns.length} new</Text>
-            </View>
-            <FlatList
-              data={newDesigns}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <DesignCard design={item} variant="compact" />
-              )}
-              scrollEnabled
-            />
+            {newDesigns.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Just Arrived</Text>
+                  <Text style={styles.sectionCount}>{meta.new} new</Text>
+                </View>
+                <FlatList
+                  data={newDesigns}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalList}
+                  keyExtractor={(item: any) => item.id}
+                  renderItem={({ item }) => (
+                    <DesignCard design={item} variant="newArrival" />
+                  )}
+                  scrollEnabled
+                />
+              </>
+            )}
           </>
         )}
 
@@ -166,12 +216,23 @@ export default function DesignsScreen() {
           </Text>
           <Text style={styles.sectionCount}>{filteredDesigns.length} items</Text>
         </View>
-        <View style={styles.designsGrid}>
-          {filteredDesigns.map((design) => (
-            <DesignCard key={design.id} design={design} />
-          ))}
-        </View>
-      </Animated.ScrollView>
+        <FlatList
+          data={filteredDesigns}
+          keyExtractor={(item: any) => item.id}
+          numColumns={columns}
+          scrollEnabled={false}
+          columnWrapperStyle={{
+            gap: GAP,
+            marginBottom: 16,
+          }}
+          contentContainerStyle={{
+            paddingHorizontal: H_PADDING,
+          }}
+          renderItem={({ item }) => (
+            <DesignCard design={item} variant="grid" cardWidth={CARD_WIDTH} />
+          )}
+        />
+      </ScrollView>
     </View>
   );
 }
@@ -180,6 +241,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     paddingHorizontal: 20,
@@ -190,19 +255,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingTop: 8,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   greeting: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.textSecondary,
     marginTop: 2,
   },
@@ -275,11 +335,5 @@ const styles = StyleSheet.create({
   },
   horizontalList: {
     paddingHorizontal: 20,
-  },
-  designsGrid: {
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
 });

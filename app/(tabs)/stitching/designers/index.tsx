@@ -8,23 +8,36 @@ import {
   TextInput,
   Pressable,
   ActivityIndicator,
+  FlatList,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Filter, Users } from 'lucide-react-native';
+import { Search, Filter, Users, Star, MapPin } from 'lucide-react-native';
+import { Image } from 'expo-image';
 
 import Colors from '@/constants/colors';
-import DesignerCard from '@/components/designer/DesignerCard';
+import { useRouter } from 'expo-router';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const { width } = Dimensions.get('window');
+const API_BASE_URL = "http://localhost:8080/api";
+
+const categories = [
+  { id: 'all', label: 'All', icon: '👗' },
+  { id: 'bridal', label: 'Bridal', icon: '👰' },
+  { id: 'women', label: "Women's", icon: '👚' },
+  { id: 'men', label: "Men's", icon: '👔' },
+  { id: 'kids', label: 'Kids', icon: '🧸' },
+  { id: 'formal', label: 'Formal', icon: '💼' },
+  { id: 'casual', label: 'Casual', icon: '👕' },
+];
 
 export default function DesignersScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFilter, setSelectedFilter] = useState('All');
-
-  const specialties = ['All', 'Bridal', 'Women', 'Men', 'Kids', 'Formal', 'Casual'];
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   useEffect(() => {
     fetchDesigners();
@@ -47,13 +60,77 @@ export default function DesignersScreen() {
       designer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       designer.speciality.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesFilter = selectedFilter === 'All' ||
-      designer.tags.some((tag: string) => 
-        tag.toLowerCase().includes(selectedFilter.toLowerCase())
+    const matchesCategory = selectedCategory === 'all' ||
+      designer.tags?.some((tag: string) => 
+        tag.toLowerCase().includes(selectedCategory.toLowerCase())
       );
     
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesCategory;
   });
+
+  const renderCategoryItem = ({ item }) => (
+    <Pressable
+      style={({ pressed }) => [
+        styles.categoryItem,
+        selectedCategory === item.id && styles.categoryItemActive,
+        pressed && styles.categoryItemPressed,
+      ]}
+      onPress={() => setSelectedCategory(item.id)}
+    >
+      <Text style={styles.categoryIcon}>{item.icon}</Text>
+      <Text style={[
+        styles.categoryLabel,
+        selectedCategory === item.id && styles.categoryLabelActive,
+      ]}>
+        {item.label}
+      </Text>
+      {selectedCategory === item.id && (
+        <View style={styles.categoryActiveIndicator} />
+      )}
+    </Pressable>
+  );
+
+  const renderDesignerCard = ({ item }) => (
+    <Pressable
+      style={({ pressed }) => [
+        styles.designerCard,
+        pressed && styles.designerCardPressed,
+      ]}
+      onPress={() => router.push(`/designer/${item.id}`)}
+    >
+      <Image source={{ uri: item.avatar }} style={styles.designerAvatar} />
+      <View style={styles.designerInfo}>
+        <View style={styles.designerHeader}>
+          <Text style={styles.designerName}>{item.name}</Text>
+          {item.verified && (
+            <View style={styles.verifiedBadge}>
+              <Text style={styles.verifiedText}>✓</Text>
+            </View>
+          )}
+        </View>
+        
+        <Text style={styles.designerSpeciality}>{item.speciality}</Text>
+        
+        <View style={styles.designerMeta}>
+          <View style={styles.ratingContainer}>
+            <Star size={14} color="#FFB800" fill="#FFB800" />
+            <Text style={styles.ratingText}>{item.rating}</Text>
+          </View>
+          <View style={styles.dot} />
+          <MapPin size={12} color={Colors.textLight} />
+          <Text style={styles.locationText}>{item.location}</Text>
+        </View>
+
+        <View style={styles.designerTags}>
+          {item.tags?.slice(0, 3).map((tag: string, index: number) => (
+            <View key={index} style={styles.tag}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </Pressable>
+  );
 
   if (loading) {
     return (
@@ -65,71 +142,70 @@ export default function DesignersScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <Users size={28} color={Colors.primary} />
-          <View>
-            <Text style={styles.title}>Fashion Designers</Text>
-            <Text style={styles.subtitle}>Discover talented creators</Text>
-          </View>
-        </View>
-        
-        <View style={styles.searchContainer}>
-          <Search size={18} color={Colors.textLight} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name or specialty..."
-            placeholderTextColor={Colors.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+        <View>
+          <Text style={styles.title}>Designers</Text>
+          <Text style={styles.subtitle}>Discover talented creators</Text>
         </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filtersContainer}
-      >
-        {specialties.map((specialty) => (
-          <Pressable
-            key={specialty}
-            style={[
-              styles.filterPill,
-              selectedFilter === specialty && styles.filterPillActive,
-            ]}
-            onPress={() => setSelectedFilter(specialty)}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                selectedFilter === specialty && styles.filterTextActive,
-              ]}
-            >
-              {specialty}
-            </Text>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Search size={20} color={Colors.textLight} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name or specialty..."
+          placeholderTextColor={Colors.textLight}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery('')}>
+            <Text style={styles.clearText}>Clear</Text>
           </Pressable>
-        ))}
-      </ScrollView>
+        )}
+      </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-      >
-        <Text style={styles.resultCount}>
+      {/* Categories */}
+      <View style={styles.categoriesWrapper}>
+        <FlatList
+          data={categories}
+          renderItem={renderCategoryItem}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesList}
+        />
+      </View>
+
+      {/* Results Count */}
+      <View style={styles.resultsHeader}>
+        <Text style={styles.resultsCount}>
           {filteredDesigners.length} designer{filteredDesigners.length !== 1 ? 's' : ''} found
         </Text>
-        {filteredDesigners.map((designer: any) => (
-          <DesignerCard key={designer.id} designer={designer} variant="horizontal" />
-        ))}
-        {filteredDesigners.length === 0 && (
-          <View style={styles.emptyState}>
-            <Filter size={48} color={Colors.borderLight} />
-            <Text style={styles.emptyTitle}>No designers found</Text>
-            <Text style={styles.emptySubtitle}>Try adjusting your search or filters</Text>
-          </View>
-        )}
-      </ScrollView>
+        <Pressable style={styles.filterButton}>
+          <Filter size={18} color={Colors.text} />
+          <Text style={styles.filterText}>Filter</Text>
+        </Pressable>
+      </View>
+
+      {/* Designers Grid */}
+      {filteredDesigners.length > 0 ? (
+        <FlatList
+          data={filteredDesigners}
+          renderItem={renderDesignerCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.designersList}
+          showsVerticalScrollIndicator={false}
+        />
+      ) : (
+        <View style={styles.emptyState}>
+          <Users size={60} color={Colors.textLight} />
+          <Text style={styles.emptyTitle}>No designers found</Text>
+          <Text style={styles.emptySubtitle}>Try adjusting your search or filters</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -137,7 +213,7 @@ export default function DesignersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8F9FA',
   },
   centerContent: {
     justifyContent: 'center',
@@ -148,87 +224,246 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
   title: {
-    fontSize: 28,
-    fontWeight: '800' as const,
-    color: Colors.text,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1A1A1A',
     letterSpacing: -0.5,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 2,
+    fontSize: 15,
+    color: '#666666',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 10,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.text,
+    color: '#1A1A1A',
+    marginLeft: 10,
     padding: 0,
   },
-  filtersContainer: {
+  clearText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  categoriesWrapper: {
+    marginBottom: 16,
+  },
+  categoriesList: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
+    gap: 10,
   },
-  filterPill: {
+  categoryItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.card,
+    paddingVertical: 10,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#F0F0F0',
+    flexDirection: 'row',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  filterPillActive: {
+  categoryItemActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
+  categoryItemPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  categoryIcon: {
+    fontSize: 16,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  categoryLabelActive: {
+    color: '#FFFFFF',
+  },
+  categoryActiveIndicator: {
+    position: 'absolute',
+    bottom: -4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  resultsCount: {
+    fontSize: 14,
+    color: '#666666',
+    fontWeight: '500',
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
   filterText: {
     fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    fontWeight: '600',
+    color: '#1A1A1A',
   },
-  filterTextActive: {
-    color: Colors.white,
-  },
-  listContainer: {
+  designersList: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingBottom: 20,
   },
-  resultCount: {
+  designerCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  designerCardPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+  },
+  designerAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F5F5F5',
+    marginRight: 16,
+  },
+  designerInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  designerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  designerName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  verifiedBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifiedText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  designerSpeciality: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 6,
+  },
+  designerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
     fontSize: 13,
-    color: Colors.textLight,
-    marginBottom: 12,
-    fontWeight: '500' as const,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#DDDDDD',
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#999999',
+  },
+  designerTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  tag: {
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tagText: {
+    fontSize: 11,
+    color: '#666666',
+    fontWeight: '500',
   },
   emptyState: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: 60,
-    gap: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    marginTop: 60,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '700' as const,
-    color: Colors.text,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: '#999999',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

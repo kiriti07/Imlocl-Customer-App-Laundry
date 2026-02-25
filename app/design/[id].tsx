@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useRef } from 'react';
+// app/design/[id].tsx
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +8,7 @@ import {
   Image,
   Pressable,
   Dimensions,
-  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,10 +27,9 @@ import {
 import * as Haptics from 'expo-haptics';
 
 import Colors from '@/constants/colors';
-import { designs } from '@/mocks/designs';
-import { designers } from '@/mocks/designers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const API_BASE_URL = "http://localhost:8080/api";
 
 export default function DesignDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,35 +37,42 @@ export default function DesignDetailScreen() {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState<boolean>(false);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
-  const heartScale = useRef(new Animated.Value(1)).current;
+  const [design, setDesign] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const design = useMemo(() => designs.find((d) => d.id === id), [id]);
-  const designer = useMemo(
-    () => (design ? designers.find((d) => d.id === design.designerId) : null),
-    [design]
-  );
+  useEffect(() => {
+    fetchDesign();
+  }, [id]);
+
+  const fetchDesign = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/public/designs/${id}`);
+      const data = await response.json();
+      setDesign(data.design);
+    } catch (error) {
+      console.error('Error fetching design:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLike = () => {
     setLiked((prev) => !prev);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Animated.sequence([
-      Animated.spring(heartScale, {
-        toValue: 1.3,
-        useNativeDriver: true,
-        friction: 3,
-      }),
-      Animated.spring(heartScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 3,
-      }),
-    ]).start();
   };
 
   const handleScroll = (event: { nativeEvent: { contentOffset: { x: number } } }) => {
     const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
     setActiveImageIndex(index);
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   if (!design) {
     return (
@@ -90,7 +97,7 @@ export default function DesignDetailScreen() {
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleScroll}
           >
-            {design.images.map((img, idx) => (
+            {design.images.map((img: string, idx: number) => (
               <Image key={idx} source={{ uri: img }} style={styles.carouselImage} />
             ))}
           </ScrollView>
@@ -101,13 +108,11 @@ export default function DesignDetailScreen() {
             </Pressable>
             <View style={styles.imageNavRight}>
               <Pressable style={styles.navBtn} onPress={handleLike}>
-                <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-                  <Heart
-                    size={20}
-                    color={liked ? '#FF4D67' : Colors.white}
-                    fill={liked ? '#FF4D67' : 'transparent'}
-                  />
-                </Animated.View>
+                <Heart
+                  size={20}
+                  color={liked ? '#FF4D67' : Colors.white}
+                  fill={liked ? '#FF4D67' : 'transparent'}
+                />
               </Pressable>
               <Pressable style={styles.navBtn}>
                 <Share2 size={20} color={Colors.white} />
@@ -117,7 +122,7 @@ export default function DesignDetailScreen() {
 
           {design.images.length > 1 && (
             <View style={styles.pagination}>
-              {design.images.map((_, idx) => (
+              {design.images.map((_: any, idx: number) => (
                 <View
                   key={idx}
                   style={[
@@ -147,21 +152,14 @@ export default function DesignDetailScreen() {
 
           <Pressable
             style={styles.designerRow}
-            onPress={() => designer && router.push(`/designer/${designer.id}`)}
+            onPress={() => router.push(`/designer/${design.designerId}`)}
           >
             <Image source={{ uri: design.designerAvatar }} style={styles.designerAvatar} />
             <View style={styles.designerInfo}>
               <View style={styles.designerNameRow}>
                 <Text style={styles.designerName}>{design.designerName}</Text>
-                {designer?.verified && <BadgeCheck size={15} color={Colors.primary} />}
+                <BadgeCheck size={15} color={Colors.primary} />
               </View>
-              {designer && (
-                <View style={styles.designerMeta}>
-                  <Star size={12} color={Colors.star} fill={Colors.star} />
-                  <Text style={styles.designerRating}>{designer.rating}</Text>
-                  <Text style={styles.designerReviews}>({designer.reviewCount})</Text>
-                </View>
-              )}
             </View>
             <ChevronRight size={18} color={Colors.textLight} />
           </Pressable>
@@ -200,7 +198,7 @@ export default function DesignDetailScreen() {
           </View>
 
           <View style={styles.tagsSection}>
-            {design.tags.map((tag) => (
+            {design.tags.map((tag: string) => (
               <View key={tag} style={styles.tag}>
                 <Text style={styles.tagText}>{tag}</Text>
               </View>
@@ -236,6 +234,12 @@ export default function DesignDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: Colors.background,
   },
   errorContainer: {
@@ -390,20 +394,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700' as const,
     color: Colors.text,
-  },
-  designerMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  designerRating: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  designerReviews: {
-    fontSize: 12,
-    color: Colors.textLight,
   },
   descriptionSection: {
     marginTop: 24,
