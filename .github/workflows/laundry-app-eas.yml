@@ -1,0 +1,49 @@
+name: Build Laundry & Stitching App (EAS)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "**/*.tsx"
+      - "**/*.ts"
+      - "package.json"
+      - "eas.json"
+      - ".github/workflows/laundry-app-eas.yml"
+
+jobs:
+  build_preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --legacy-peer-deps
+
+      - name: Setup Expo + EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Print versions
+        run: |
+          node -v
+          npm -v
+          eas --version
+          npx expo --version
+
+      - name: Expo doctor
+        run: npx expo-doctor || true
+
+      - name: Confirm EAS account
+        run: eas whoami
+
+      - name: EAS Build (Android internal APK)
+        run: eas build -p android --profile preview --non-interactive

@@ -16,8 +16,9 @@ import { Search, Sparkles, Crown, Shirt, Baby, Heart, GraduationCap, Sun } from 
 
 import Colors from '@/constants/colors';
 import DesignCard from '@/components/designer/DesignCard';
+import { config } from '@/config';
 
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = config.apiUrl;
 
 const categoryIcons: Record<string, React.ReactNode> = {
   all: <Sparkles size={18} color={Colors.white} />,

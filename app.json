@@ -39,6 +39,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "3907231c-afc3-47ef-93bc-b6d2235ab740"
+      }
+    },
+    "owner": "kiriti7"
   }
 }

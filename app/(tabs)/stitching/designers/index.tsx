@@ -17,9 +17,10 @@ import { Image } from 'expo-image';
 
 import Colors from '@/constants/colors';
 import { useRouter } from 'expo-router';
+import { config } from '@/config';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = config.apiUrl;
 
 const categories = [
   { id: 'all', label: 'All', icon: '👗' },

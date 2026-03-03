@@ -31,9 +31,10 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
+import { config } from '@/config';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = config.apiUrl;
 
 export default function DesignerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
