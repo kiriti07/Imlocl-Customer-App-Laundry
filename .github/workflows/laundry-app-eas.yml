@@ -23,10 +23,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: './package-lock.json'
 
-      - name: Install dependencies
+      - name: Install dependencies (including dev)
         run: |
           rm -rf node_modules package-lock.json
-          npm install --legacy-peer-deps
+          npm install --legacy-peer-deps --include=dev
+
+      - name: Verify babel plugin is installed
+        run: |
+          ls node_modules/babel-plugin-module-resolver || echo "Plugin not found"
+          npm list babel-plugin-module-resolver
 
       - name: Setup Expo + EAS
         uses: expo/expo-github-action@v8
