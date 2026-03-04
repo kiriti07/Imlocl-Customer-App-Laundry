@@ -217,10 +217,9 @@ export default function DesignerProfileScreen() {
         </Text>
       </View>
       <FlatList
-        key={`designer-grid-${columns}`}
-        numColumns={columns}
-        data={Array.isArray(selectedSubcategory?.items) ? selectedSubcategory!.items : []}
+        key="designer-grid"
         numColumns={2}
+        data={Array.isArray(selectedSubcategory?.items) ? selectedSubcategory!.items : []}
         keyExtractor={(item, index) => String(item?.id ?? index)}
         columnWrapperStyle={styles.itemRow}
         renderItem={({ item }) => (

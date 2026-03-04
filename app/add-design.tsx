@@ -23,7 +23,9 @@ import {
 import * as Haptics from 'expo-haptics';
 
 import Colors from '@/constants/colors';
-import { Category } from '@/types';
+
+// Define the Category type locally
+type Category = 'women' | 'men' | 'kids' | 'bridal' | 'formal' | 'casual';
 
 const categoryOptions: { id: Category; label: string }[] = [
   { id: 'women', label: "Women's" },

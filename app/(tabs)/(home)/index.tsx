@@ -115,7 +115,7 @@ export default function HomeScreen() {
                 <Pressable
                   key={service.id}
                   style={({ pressed }) => [styles.serviceCard, pressed && styles.servicePressed]}
-                  onPress={() => router.push(service.route)}
+                  onPress={() => router.push(service.route as any)}
                   testID={`service-${service.id}`}
                 >
                   <View style={[styles.serviceIcon, { backgroundColor: service.bgColor }]}>
@@ -159,7 +159,7 @@ export default function HomeScreen() {
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Stitching Requests</Text>
-            <Pressable onPress={() => router.push('/(tabs)/stitching')}>
+            <Pressable onPress={() => router.push('/(tabs)/stitching' as any)}>
               <Text style={styles.seeAll}>See All</Text>
             </Pressable>
           </View>

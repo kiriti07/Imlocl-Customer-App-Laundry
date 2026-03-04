@@ -69,7 +69,7 @@ export default function DesignersScreen() {
     return matchesSearch && matchesCategory;
   });
 
-  const renderCategoryItem = ({ item }) => (
+  const renderCategoryItem = ({ item }: { item: any }) => (
     <Pressable
       style={({ pressed }) => [
         styles.categoryItem,
@@ -91,7 +91,7 @@ export default function DesignersScreen() {
     </Pressable>
   );
 
-  const renderDesignerCard = ({ item }) => (
+  const renderDesignerCard = ({ item }: { item: any }) => (
     <Pressable
       style={({ pressed }) => [
         styles.designerCard,

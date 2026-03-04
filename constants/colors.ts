@@ -29,6 +29,9 @@ const Colors = {
   stitchingLight: '#FFF7E8',
   delivery: '#3D6B7E',
   deliveryLight: '#E8F0F4',
+  white: '#FFFFFF',
+  cardAlt: '#F8F9FA',
+  star: '#FFD700',
 };
 
 export default Colors;
