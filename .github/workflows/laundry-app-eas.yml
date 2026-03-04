@@ -41,6 +41,8 @@ jobs:
 
       - name: Print versions
         run: |
+          node -v
+          npm -v
           eas --version
           npx expo --version
 
