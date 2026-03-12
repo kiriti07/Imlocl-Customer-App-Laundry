@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Locl",
-    "slug": "multi-service-app-platform-nu6clav",
+    "slug": "locl-laundry-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
+    "scheme": "locl-laundry",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.multi-service-app-platform-nu6clav"
+      "bundleIdentifier": "com.kiriti7.locl.laundry"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.multi_service_app_platform_nu6clav"
+      "package": "com.kiriti7.locl.laundry"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -45,7 +45,7 @@
         "origin": "https://rork.com/"
       },
       "eas": {
-        "projectId": "3907231c-afc3-47ef-93bc-b6d2235ab740"
+        "projectId": "REPLACE_WITH_LAUNDRY_EAS_PROJECT_ID"
       }
     },
     "owner": "kiriti7"
