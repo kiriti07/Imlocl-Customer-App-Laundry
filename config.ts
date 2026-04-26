@@ -8,14 +8,18 @@ interface Config {
   socketUrl: string;
 }
 
+const AZURE_API = 'https://imlocl-backend-api.happysmoke-3977f0fa.centralindia.azurecontainerapps.io/api';
+const AZURE_SOCKET = 'https://imlocl-backend-api.happysmoke-3977f0fa.centralindia.azurecontainerapps.io';
+
 const configs: Record<Environment, Config> = {
   development: {
-    apiUrl: 'http://localhost:8080/api',
-    socketUrl: 'http://localhost:8080',
+    // Point dev at Azure — run `npx ts-node src/server.ts` locally if you want local dev
+    apiUrl: AZURE_API,
+    socketUrl: AZURE_SOCKET,
   },
   production: {
-    apiUrl: 'https://imlocl-backend-api.happysmoke-3977f0fa.centralindia.azurecontainerapps.io/api',
-    socketUrl: 'https://imlocl-backend-api.happysmoke-3977f0fa.centralindia.azurecontainerapps.io',
+    apiUrl: AZURE_API,
+    socketUrl: AZURE_SOCKET,
   },
 };
 

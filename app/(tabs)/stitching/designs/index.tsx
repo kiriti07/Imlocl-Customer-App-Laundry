@@ -1,340 +1,340 @@
 // app/(tabs)/stitching/designs/index.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  FlatList,
-  Pressable,
-  TextInput,
-  ActivityIndicator,
-  Dimensions,
+  View, Text, StyleSheet, ScrollView,
+  FlatList, Pressable, TextInput,
+  ActivityIndicator, Dimensions,
+  RefreshControl, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Sparkles, Crown, Shirt, Baby, Heart, GraduationCap, Sun } from 'lucide-react-native';
-
+import {
+  Search, X, Zap, Sparkles, Crown, Shirt,
+  Baby, Heart, GraduationCap, Sun, AlertCircle, SlidersHorizontal,
+} from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import DesignCard from '@/components/designer/DesignCard';
+import { FeaturedCard, NewArrivalCard, GridCard } from '@/components/designer/DesignCard';
 import { config } from '@/config';
 
-const API_BASE_URL = config.apiUrl;
+const { width } = Dimensions.get('window');
 
-const categoryIcons: Record<string, React.ReactNode> = {
-  all: <Sparkles size={18} color={Colors.white} />,
-  women: <Crown size={18} color={Colors.white} />,
-  men: <Shirt size={18} color={Colors.white} />,
-  kids: <Baby size={18} color={Colors.white} />,
-  bridal: <Heart size={18} color={Colors.white} />,
-  formal: <GraduationCap size={18} color={Colors.white} />,
-  casual: <Sun size={18} color={Colors.white} />,
-};
-
-const categoryIconsInactive: Record<string, React.ReactNode> = {
-  all: <Sparkles size={18} color={Colors.textSecondary} />,
-  women: <Crown size={18} color={Colors.textSecondary} />,
-  men: <Shirt size={18} color={Colors.textSecondary} />,
-  kids: <Baby size={18} color={Colors.textSecondary} />,
-  bridal: <Heart size={18} color={Colors.textSecondary} />,
-  formal: <GraduationCap size={18} color={Colors.textSecondary} />,
-  casual: <Sun size={18} color={Colors.textSecondary} />,
-};
-
-const categories = [
-  { id: 'all', label: 'All' },
-  { id: 'women', label: "Women's" },
-  { id: 'men', label: "Men's" },
-  { id: 'kids', label: 'Kids' },
-  { id: 'bridal', label: 'Bridal' },
-  { id: 'formal', label: 'Formal' },
-  { id: 'casual', label: 'Casual' },
+const CATS = [
+  { id: 'all',    label: 'All',      Icon: Sparkles },
+  { id: 'women',  label: "Women's",  Icon: Crown },
+  { id: 'men',    label: "Men's",    Icon: Shirt },
+  { id: 'kids',   label: 'Kids',     Icon: Baby },
+  { id: 'bridal', label: 'Bridal',   Icon: Heart },
+  { id: 'formal', label: 'Formal',   Icon: GraduationCap },
+  { id: 'casual', label: 'Casual',   Icon: Sun },
 ];
+
+const SORTS = ['Newest', 'Price ↑', 'Price ↓', 'Popular'];
+
+function chunk<T>(arr: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+}
 
 export default function DesignsScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = Dimensions.get('window');
+  const GAP   = 10;
+  const HPAD  = 16;
+  const cols  = width >= 768 ? 3 : 2;
+  const CARD  = (width - HPAD * 2 - GAP * (cols - 1)) / cols;
 
-  const GAP = 12;
-  const H_PADDING = 20;
+  const [cat,       setCat]       = useState('all');
+  const [search,    setSearch]    = useState('');
+  const [sortIdx,   setSortIdx]   = useState(0);
+  const [designs,   setDesigns]   = useState<any[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [refreshing,setRefreshing]= useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const [meta,      setMeta]      = useState({ total: 0, trending: 0, new: 0 });
+  const [focused,   setFocused]   = useState(false);
 
-  // pick columns based on screen width
-  const columns =
-    width >= 1400 ? 8 :
-    width >= 1200 ? 7 :
-    width >= 1024 ? 6 :
-    width >= 820  ? 5 :
-    width >= 680  ? 4 :
-    width >= 520  ? 3 : 2;
-
-  // compute card width for those columns
-  const CARD_WIDTH =
-    (width - H_PADDING * 2 - GAP * (columns - 1)) / columns;
-
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [designs, setDesigns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [meta, setMeta] = useState({ total: 0, trending: 0, new: 0 });
-
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    fetchDesigns();
-  }, [selectedCategory]);
+    Animated.timing(fadeAnim, { toValue: 1, duration: 450, useNativeDriver: true }).start();
+  }, []);
 
-  const fetchDesigns = async () => {
+  const fetchDesigns = useCallback(async (c = cat, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else { setLoading(true); setError(null); }
     try {
-      const url = `${API_BASE_URL}/public/designs?category=${selectedCategory}`;
-      console.log('Fetching designs from:', url);
-      const response = await fetch(url);
-      const data = await response.json();
-      console.log('Designs fetched:', data);
-      setDesigns(data.designs || []);
-      setMeta(data.meta || { total: 0, trending: 0, new: 0 });
-    } catch (error) {
-      console.error('Error fetching designs:', error);
+      const res  = await fetch(`${config.apiUrl}/public/designs?category=${c}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || `Error ${res.status}`);
+      setDesigns(data.designs ?? []);
+      setMeta(data.meta ?? { total: 0, trending: 0, new: 0 });
+    } catch (e: any) {
+      setError(e.message ?? 'Could not load designs');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [cat]);
 
-  const trendingDesigns = designs.filter((d: any) => d.isTrending);
-  const newDesigns = designs.filter((d: any) => d.isNew);
+  useEffect(() => { fetchDesigns(cat); }, [cat]);
 
-  const filteredDesigns = designs.filter((d: any) => {
-    const matchesSearch = !searchQuery || 
-      d.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  const trending = designs.filter(d => d.isTrending);
+  const newest   = designs.filter(d => d.isNew);
+  let   filtered = designs.filter(d => !search || d.title?.toLowerCase().includes(search.toLowerCase()));
+  if (sortIdx === 1) filtered = [...filtered].sort((a, b) => a.price - b.price);
+  if (sortIdx === 2) filtered = [...filtered].sort((a, b) => b.price - a.price);
+  if (sortIdx === 3) filtered = [...filtered].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
+  if (loading) return (
+    <View style={s.centered}>
+      <ActivityIndicator size="large" color={Colors.ink} />
+      <Text style={s.loadTxt}>Loading collection…</Text>
+    </View>
+  );
+
+  if (error) return (
+    <View style={s.centered}>
+      <AlertCircle size={36} color={Colors.dangerText} />
+      <Text style={s.errTitle}>Couldn't load</Text>
+      <Text style={s.errBody}>{error}</Text>
+      <Pressable style={s.retryBtn} onPress={() => fetchDesigns(cat)}>
+        <Text style={s.retryTxt}>Try again</Text>
+      </Pressable>
+    </View>
+  );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
+    <View style={[s.root, { paddingTop: insets.top }]}>
+
+      {/* ── Magazine header ── */}
+      <View style={s.header}>
+        <View style={s.masthead}>
           <View>
-            <Text style={styles.greeting}>Discover Designs</Text>
-            <Text style={styles.subtitle}>Find your perfect style</Text>
+            <Text style={s.mastheadLabel}>IMLOCL STUDIO</Text>
+            <Text style={s.mastheadTitle}>Designs</Text>
+            <Text style={s.mastheadSub}>
+              {meta.total > 0 ? `${meta.total} pieces in collection` : 'Browse collection'}
+            </Text>
           </View>
+          <Pressable style={s.sortBtn} onPress={() => setSortIdx((sortIdx + 1) % SORTS.length)}>
+            <SlidersHorizontal size={12} color={Colors.text} />
+            <Text style={s.sortTxt}>{SORTS[sortIdx]}</Text>
+          </Pressable>
         </View>
-        <View style={styles.searchContainer}>
-          <Search size={18} color={Colors.textLight} />
+
+        {/* Bold ruled line — magazine masthead */}
+        <View style={s.mastheadRule} />
+
+        {/* Search */}
+        <View style={[s.searchBar, focused && s.searchBarFocused]}>
+          <Search size={14} color={Colors.textLight} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Search designs..."
+            style={s.searchInput}
+            placeholder="Search the collection…"
             placeholderTextColor={Colors.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={search}
+            onChangeText={setSearch}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
           />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+              <X size={13} color={Colors.textLight} />
+            </Pressable>
+          )}
         </View>
+
+        {/* Category pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
+          {CATS.map(({ id, label, Icon }) => {
+            const active = cat === id;
+            return (
+              <Pressable key={id} style={[s.pill, active && s.pillActive]} onPress={() => setCat(id)}>
+                <Icon size={11} color={active ? '#fff' : Colors.textSecondary} strokeWidth={2} />
+                <Text style={[s.pillTxt, active && s.pillTxtActive]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      <ScrollView
+      <Animated.ScrollView
+        style={{ opacity: fadeAnim }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchDesigns(cat, true)} tintColor={Colors.ink} />
+        }
       >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesContainer}
-        >
-          {categories.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={[
-                styles.categoryPill,
-                selectedCategory === cat.id && styles.categoryPillActive,
-              ]}
-              onPress={() => setSelectedCategory(cat.id)}
-            >
-              {selectedCategory === cat.id
-                ? categoryIcons[cat.id]
-                : categoryIconsInactive[cat.id]}
-              <Text
-                style={[
-                  styles.categoryText,
-                  selectedCategory === cat.id && styles.categoryTextActive,
-                ]}
-              >
-                {cat.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
 
-        {!searchQuery && (
-          <>
-            {trendingDesigns.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Trending Now</Text>
-                  <Text style={styles.sectionCount}>{meta.trending} designs</Text>
-                </View>
-                <FlatList
-                  data={trendingDesigns}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalList}
-                  keyExtractor={(item: any) => item.id}
-                  renderItem={({ item }) => (
-                    <DesignCard design={item} variant="featured" />
-                  )}
-                  scrollEnabled
-                />
-              </>
-            )}
-
-            {newDesigns.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Just Arrived</Text>
-                  <Text style={styles.sectionCount}>{meta.new} new</Text>
-                </View>
-                <FlatList
-                  data={newDesigns}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalList}
-                  keyExtractor={(item: any) => item.id}
-                  renderItem={({ item }) => (
-                    <DesignCard design={item} variant="newArrival" />
-                  )}
-                  scrollEnabled
-                />
-              </>
-            )}
-          </>
+        {/* ── Trending strip ── */}
+        {!search && trending.length > 0 && (
+          <View style={s.section}>
+            <View style={s.sectionHead}>
+              <View style={s.sectionHeadLeft}>
+                <Zap size={13} fill="#E24B4A" color="#E24B4A" />
+                <Text style={s.sectionTitle}>Trending</Text>
+              </View>
+              <Text style={s.sectionCount}>{meta.trending} pieces</Text>
+            </View>
+            <FlatList
+              data={trending}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.hStrip}
+              keyExtractor={d => `t-${d.id}`}
+              renderItem={({ item }) => <FeaturedCard design={item} />}
+            />
+          </View>
         )}
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {searchQuery ? 'Search Results' : 'All Designs'}
-          </Text>
-          <Text style={styles.sectionCount}>{filteredDesigns.length} items</Text>
-        </View>
-        <FlatList
-          data={filteredDesigns}
-          keyExtractor={(item: any) => item.id}
-          numColumns={columns}
-          scrollEnabled={false}
-          columnWrapperStyle={{
-            gap: GAP,
-            marginBottom: 16,
-          }}
-          contentContainerStyle={{
-            paddingHorizontal: H_PADDING,
-          }}
-          renderItem={({ item }) => (
-            <DesignCard design={item} variant="grid" cardWidth={CARD_WIDTH} />
+        {/* ── New arrivals ── */}
+        {!search && newest.length > 0 && (
+          <View style={s.section}>
+            <View style={s.sectionHead}>
+              <View style={s.sectionHeadLeft}>
+                <Sparkles size={12} color={Colors.maskedText} />
+                <Text style={s.sectionTitle}>New arrivals</Text>
+              </View>
+              <Text style={s.sectionCount}>{meta.new} new</Text>
+            </View>
+            <FlatList
+              data={newest}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.hStrip}
+              keyExtractor={d => `n-${d.id}`}
+              renderItem={({ item }) => <NewArrivalCard design={item} />}
+            />
+          </View>
+        )}
+
+        {/* ── Lookbook grid ── */}
+        <View style={s.section}>
+          <View style={s.sectionHead}>
+            <View style={s.sectionHeadLeft}>
+              <Text style={s.sectionTitle}>{search ? 'Results' : 'The lookbook'}</Text>
+            </View>
+            <Text style={s.sectionCount}>{filtered.length} items</Text>
+          </View>
+
+          {filtered.length === 0 ? (
+            <View style={s.empty}>
+              <Sparkles size={40} color={Colors.border} />
+              <Text style={s.emptyTitle}>Nothing here yet</Text>
+              <Text style={s.emptyBody}>
+                {search ? 'Try a different keyword' : 'No designs in this category'}
+              </Text>
+            </View>
+          ) : (
+            chunk(filtered, cols).map((row, ri) => (
+              <View key={ri} style={[s.gridRow, { paddingHorizontal: HPAD, gap: GAP, marginBottom: GAP + 4 }]}>
+                {row.map((item: any) => <GridCard key={item.id} design={item} cardWidth={CARD} />)}
+                {row.length < cols && Array.from({ length: cols - row.length }).map((_, i) => (
+                  <View key={`fill-${i}`} style={{ width: CARD }} />
+                ))}
+              </View>
+            ))
           )}
-        />
-      </ScrollView>
+        </View>
+
+        <View style={{ height: 60 }} />
+      </Animated.ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.background },
+  centered: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    padding: 32, gap: 12, backgroundColor: Colors.background,
   },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  loadTxt: { fontSize: 14, color: Colors.textSecondary, marginTop: 8 },
+  errTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  errBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
+  retryBtn: { backgroundColor: Colors.ink, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, marginTop: 4 },
+  retryTxt: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
+
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    backgroundColor: Colors.background,
-  },
-  headerTop: {
-    marginBottom: 16,
-    paddingTop: 8,
-  },
-  greeting: {
-    fontSize: 32,
-    fontWeight: '800' as const,
-    color: Colors.text,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.border,
     gap: 10,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: Colors.text,
-    padding: 0,
+  masthead: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  scrollContent: {
-    paddingBottom: 32,
+  mastheadLabel: {
+    fontSize: 8, fontWeight: '800' as const,
+    color: Colors.textLight, letterSpacing: 3,
   },
-  categoriesContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+  mastheadTitle: {
+    fontSize: 30, fontWeight: '900' as const,
+    color: Colors.text, letterSpacing: -1,
+    lineHeight: 34,
+  },
+  mastheadSub: { fontSize: 11, color: Colors.textLight, marginTop: 1 },
+  mastheadRule: { height: 2, backgroundColor: Colors.ink },
+  sortBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    marginTop: 4,
+    alignSelf: 'flex-start' as const,
+  },
+  sortTxt: { fontSize: 11, fontWeight: '600' as const, color: Colors.text },
+  searchBar: {
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     gap: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
   },
-  categoryPill: {
-    flexDirection: 'row',
+  searchBarFocused: { borderColor: Colors.ink, backgroundColor: Colors.inkFaint },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.text, padding: 0 },
+
+  pillsRow: { gap: 7, paddingBottom: 2 },
+  pill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 0.5, borderColor: Colors.border,
+    gap: 5,
+  },
+  pillActive: { backgroundColor: Colors.ink, borderColor: Colors.ink },
+  pillTxt: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  pillTxtActive: { color: '#fff' },
+
+  section: { marginTop: 22 },
+  sectionHead: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    gap: 6,
-  },
-  categoryPillActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.textSecondary,
-  },
-  categoryTextActive: {
-    color: Colors.white,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    paddingHorizontal: 20,
-    marginTop: 24,
     marginBottom: 14,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800' as const,
-    color: Colors.text,
-    letterSpacing: -0.3,
-  },
-  sectionCount: {
-    fontSize: 13,
-    color: Colors.textLight,
-    fontWeight: '500' as const,
-  },
-  horizontalList: {
-    paddingHorizontal: 20,
-  },
+  sectionHeadLeft: { flexDirection: 'row' as const, alignItems: 'center', gap: 7 },
+  sectionTitle: { fontSize: 20, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
+  sectionCount: { fontSize: 11, color: Colors.textLight, fontWeight: '500' as const },
+  hStrip: { paddingHorizontal: 16 },
+  gridRow: { flexDirection: 'row' as const },
+
+  empty: { alignItems: 'center', paddingTop: 48, paddingBottom: 32, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  emptyBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 19, paddingHorizontal: 24 },
 });

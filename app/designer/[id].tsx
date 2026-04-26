@@ -1,815 +1,657 @@
 // app/designer/[id].tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  Pressable,
-  ActivityIndicator,
-  FlatList,
-  Dimensions,
+  View, Text, StyleSheet, ScrollView,
+  Pressable, ActivityIndicator, FlatList,
+  Dimensions, Animated,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
-  Star,
-  MapPin,
-  BadgeCheck,
-  Scissors,
-  Clock,
-  MessageCircle,
-  Share2,
-  ChevronRight,
-  Grid,
-  Heart,
-  ShoppingBag,
-  ChevronDown,
-  ChevronUp,
+  ArrowLeft, Share2, CheckCircle, MapPin,
+  Scissors, ArrowUpRight, Heart, Zap, ChevronRight,
 } from 'lucide-react-native';
-
 import Colors from '@/constants/colors';
 import { config } from '@/config';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = config.apiUrl;
+const ITEM_W = (width - 48) / 2;
 
-export default function DesignerProfileScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [designer, setDesigner] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<any>(null);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<any>(null);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    fetchDesigner();
-  }, [id]);
+const COVER_PALETTES = [
+  { bg: '#1C1C1E', accent: '#3C3C3E' },
+  { bg: '#1A1F2E', accent: '#2A2F4E' },
+  { bg: '#1E1A14', accent: '#3E3428' },
+  { bg: '#14201A', accent: '#243830' },
+  { bg: '#1E1420', accent: '#3E2840' },
+  { bg: '#201414', accent: '#402828' },
+];
+const AVATAR_SWATCHES = [
+  { bg: '#FDF6E3', fg: '#9B6914' },
+  { bg: '#E8F5E9', fg: '#2E7D32' },
+  { bg: '#EDE7F6', fg: '#512DA8' },
+  { bg: '#FCE4EC', fg: '#AD1457' },
+  { bg: '#E3F2FD', fg: '#1565C0' },
+  { bg: '#FFF8E1', fg: '#F57F17' },
+];
 
-  const fetchDesigner = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/public/designers/${id}`);
-      const data = await response.json();
-      setDesigner(data.designer);
-      
-      // Auto-select first category if available
-      if (data.designer?.categories?.length > 0) {
-        setSelectedCategory(data.designer.categories[0]);
-        setExpandedCategory(data.designer.categories[0].id);
-      }
-    } catch (error) {
-      console.error('Error fetching designer:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+function hashStr(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+  return Math.abs(h);
+}
+function initials(name: string) {
+  const p = name.trim().split(/\s+/);
+  return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+function isReal(uri?: string) {
+  return !!uri && uri.startsWith('http') && !uri.includes('ui-avatars.com');
+}
 
-  const handleCategoryPress = (category: any) => {
-    setSelectedCategory(category);
-    setExpandedCategory(expandedCategory === category.id ? null : category.id);
-    setSelectedSubcategory(null);
-  };
-
-  const handleSubcategoryPress = (subcategory: any) => {
-    setSelectedSubcategory(subcategory);
-  };
-
-  const handleBack = () => {
-    if (selectedSubcategory) {
-      setSelectedSubcategory(null);
-    } else {
-      router.back();
-    }
-  };
-
-  const handleGoHome = () => {
-    router.push('/(tabs)/(home)');
-  };
-
-  const getHeaderTitle = () => {
-    if (selectedSubcategory) return selectedSubcategory.name;
-    if (selectedCategory) return selectedCategory.name;
-    return designer?.name || 'Designer';
-  };
-
-  const renderHorizontalCategories = () => (
-    <View style={styles.categoriesSection}>
-      <Text style={styles.sectionTitle}>Shop by Category</Text>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesScrollContent}
-      >
-        {designer?.categories?.map((category: any) => (
-          <Pressable
-            key={category.id}
-            style={({ pressed }) => [
-              styles.categoryCard,
-              selectedCategory?.id === category.id && styles.categoryCardActive,
-              pressed && styles.categoryCardPressed,
-            ]}
-            onPress={() => handleCategoryPress(category)}
-          >
-            <Text style={[
-              styles.categoryName,
-              selectedCategory?.id === category.id && styles.categoryNameActive,
-            ]}>
-              {category.name}
-            </Text>
-            <View style={[
-              styles.categoryBadge,
-              selectedCategory?.id === category.id && styles.categoryBadgeActive,
-            ]}>
-              <Text style={[
-                styles.categoryBadgeText,
-                selectedCategory?.id === category.id && styles.categoryBadgeTextActive,
-              ]}>
-                {category.subcategories?.length || 0}
-              </Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  const renderSubcategoriesDropdown = () => {
-    if (!selectedCategory) return null;
-
-    return (
-      <View style={styles.subcategoriesSection}>
-        <View style={styles.subcategoriesHeader}>
-          <Text style={styles.subcategoriesTitle}>
-            {selectedCategory.name} Subcategories
-          </Text>
-          <Pressable
-            style={styles.expandAllButton}
-            onPress={() => setExpandedCategory(expandedCategory === selectedCategory.id ? null : selectedCategory.id)}
-          >
-            <Text style={styles.expandAllText}>
-              {expandedCategory === selectedCategory.id ? 'Collapse' : 'Expand'}
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Dropdown for selected category */}
-        {expandedCategory === selectedCategory.id && (
-          <View style={styles.dropdownContainer}>
-            {selectedCategory.subcategories?.map((subcategory: any) => (
-              <Pressable
-                key={subcategory.id}
-                style={({ pressed }) => [
-                  styles.dropdownItem,
-                  selectedSubcategory?.id === subcategory.id && styles.dropdownItemActive,
-                  pressed && styles.dropdownItemPressed,
-                ]}
-                onPress={() => handleSubcategoryPress(subcategory)}
-              >
-                <View style={styles.dropdownItemLeft}>
-                  <Text style={[
-                    styles.dropdownItemName,
-                    selectedSubcategory?.id === subcategory.id && styles.dropdownItemNameActive,
-                  ]}>
-                    {subcategory.name}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.dropdownItemBadge,
-                  selectedSubcategory?.id === subcategory.id && styles.dropdownItemBadgeActive,
-                ]}>
-                  <Text style={[
-                    styles.dropdownItemBadgeText,
-                    selectedSubcategory?.id === subcategory.id && styles.dropdownItemBadgeTextActive,
-                  ]}>
-                    {subcategory.items?.length || 0}
-                  </Text>
-                </View>
-                {selectedSubcategory?.id === subcategory.id && (
-                  <ChevronRight size={16} color={Colors.white} />
-                )}
-              </Pressable>
-            ))}
-
-            {(!selectedCategory.subcategories || selectedCategory.subcategories.length === 0) && (
-              <View style={styles.emptySubcategories}>
-                <Text style={styles.emptySubcategoriesText}>No subcategories available</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderItems = () => (
-    <View style={styles.itemsContainer}>
-      <View style={styles.itemsHeader}>
-        <View>
-          <Text style={styles.itemsHeaderCategory}>{selectedCategory?.name}</Text>
-          <Text style={styles.itemsHeaderTitle}>{selectedSubcategory?.name}</Text>
-        </View>
-        <Text style={styles.itemsHeaderCount}>
-          {selectedSubcategory?.items?.length || 0} items
-        </Text>
-      </View>
-      <FlatList
-        key="designer-grid"
-        numColumns={2}
-        data={Array.isArray(selectedSubcategory?.items) ? selectedSubcategory!.items : []}
-        keyExtractor={(item, index) => String(item?.id ?? index)}
-        columnWrapperStyle={styles.itemRow}
-        renderItem={({ item }) => (
-          <Pressable
-            style={({ pressed }) => [
-              styles.itemCard,
-              pressed && styles.itemCardPressed,
-            ]}
-            onPress={() => router.push(`/design/${item.id}`)}
-          >
-            <Image source={{ uri: item.images?.[0] }} style={styles.itemImage} />
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-              <Text style={styles.itemPrice}>₹{item.price.toLocaleString()}</Text>
-              <View style={styles.itemBadge}>
-                <Text style={styles.itemBadgeText}>
-                  {item.availability === 'READY_MADE' ? 'Ready Made' : 'Custom'}
-                </Text>
-              </View>
-            </View>
-          </Pressable>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyItems}>
-            <ShoppingBag size={48} color={Colors.textLight} />
-            <Text style={styles.emptyItemsText}>No items in this subcategory</Text>
-          </View>
-        }
-      />
-    </View>
-  );
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+// ── Avatar ────────────────────────────────────────────────────────────────────
+function AvatarView({ uri, name, size }: { uri: string; name: string; size: number }) {
+  const sw = AVATAR_SWATCHES[hashStr(name) % AVATAR_SWATCHES.length];
+  if (isReal(uri)) {
+    return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />;
   }
-
-  if (!designer) {
-    return (
-      <View style={styles.errorContainer}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.errorText}>Designer not found</Text>
-        <Pressable onPress={handleGoHome} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Go to Home</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-      
-      {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerContent}>
-          <Pressable style={styles.headerBackBtn} onPress={handleBack}>
-            <ArrowLeft size={24} color={Colors.text} />
-          </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>{getHeaderTitle()}</Text>
-          <View style={styles.headerRight}>
-            <Pressable style={styles.headerIcon} onPress={handleGoHome}>
-              <Grid size={22} color={Colors.text} />
-            </Pressable>
-            <Pressable style={styles.headerIcon}>
-              <Share2 size={22} color={Colors.text} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-
-      {/* Breadcrumb */}
-      {selectedSubcategory && (
-        <View style={styles.breadcrumb}>
-          <Pressable onPress={() => setSelectedSubcategory(null)}>
-            <Text style={styles.breadcrumbText}>{designer.name}</Text>
-          </Pressable>
-          <ChevronRight size={14} color={Colors.textLight} />
-          <Text style={styles.breadcrumbCurrent}>{selectedCategory?.name}</Text>
-          <ChevronRight size={14} color={Colors.textLight} />
-          <Text style={styles.breadcrumbCurrent}>{selectedSubcategory.name}</Text>
-        </View>
-      )}
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Designer Profile Section */}
-        <View style={styles.profileSection}>
-          <Image source={{ uri: designer.coverImage }} style={styles.coverImage} />
-          <View style={styles.profileInfo}>
-            <Image source={{ uri: designer.avatar }} style={styles.profileAvatar} />
-            <View style={styles.profileDetails}>
-              <View style={styles.profileNameRow}>
-                <Text style={styles.profileName}>{designer.name}</Text>
-                {designer.verified && <BadgeCheck size={18} color={Colors.primary} />}
-              </View>
-              <View style={styles.profileSpeciality}>
-                <Scissors size={14} color={Colors.primary} />
-                <Text style={styles.profileSpecialityText}>{designer.speciality}</Text>
-              </View>
-              <View style={styles.profileLocation}>
-                <MapPin size={12} color={Colors.textLight} />
-                <Text style={styles.profileLocationText}>{designer.location}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <View style={styles.statValueRow}>
-                <Star size={14} color={Colors.star} fill={Colors.star} />
-                <Text style={styles.statValue}>{designer.rating}</Text>
-              </View>
-              <Text style={styles.statLabel}>{designer.reviewCount} reviews</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{designer.designCount}</Text>
-              <Text style={styles.statLabel}>Designs</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{designer.experience}</Text>
-              <Text style={styles.statLabel}>Experience</Text>
-            </View>
-          </View>
-
-          {/* Bio */}
-          <View style={styles.bioSection}>
-            <Text style={styles.bioText}>{designer.bio}</Text>
-          </View>
-
-          {/* Tags */}
-          <View style={styles.tagsSection}>
-            {designer.tags?.map((tag: string) => (
-              <View key={tag} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Horizontal Categories */}
-        {!selectedSubcategory && renderHorizontalCategories()}
-
-        {/* Subcategories Dropdown (only shows when category selected) */}
-        {selectedCategory && !selectedSubcategory && renderSubcategoriesDropdown()}
-
-        {/* Items (when subcategory selected) */}
-        {selectedSubcategory && renderItems()}
-      </ScrollView>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: sw.bg, justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ fontSize: size * 0.32, fontWeight: '700', color: sw.fg }}>{initials(name)}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
+// ── Cover ─────────────────────────────────────────────────────────────────────
+function CoverView({ uri, name, height }: { uri?: string; name: string; height: number }) {
+  const pal = COVER_PALETTES[hashStr(name) % COVER_PALETTES.length];
+  if (isReal(uri)) {
+    return (
+      <View style={{ width: '100%', height }}>
+        <Image source={{ uri }} style={{ width: '100%', height }} contentFit="cover" transition={300} />
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: height * 0.5, backgroundColor: 'rgba(0,0,0,0.45)' }} />
+      </View>
+    );
+  }
+  return (
+    <View style={{ width: '100%', height, backgroundColor: pal.bg, overflow: 'hidden' }}>
+      {[0.3, 0.6].map(f => (
+        <View key={`h${f}`} style={{ position: 'absolute', left: 0, right: 0, top: height * f, height: 0.5, backgroundColor: pal.accent }} />
+      ))}
+      {[0.35, 0.7].map(f => (
+        <View key={`v${f}`} style={{ position: 'absolute', top: 0, bottom: 0, left: `${f * 100}%` as any, width: 0.5, backgroundColor: pal.accent }} />
+      ))}
+      <Text style={{ position: 'absolute', right: 16, bottom: 8, fontSize: 80, fontWeight: '900', color: 'rgba(255,255,255,0.06)', letterSpacing: -6 }}>{initials(name)}</Text>
+      <Text style={{ position: 'absolute', left: 16, top: 14, fontSize: 8, fontWeight: '800', color: 'rgba(255,255,255,0.35)', letterSpacing: 3.5 }}>IMLOCL</Text>
+      <View style={{ position: 'absolute', left: 16, top: 27, width: 20, height: 1, backgroundColor: 'rgba(255,255,255,0.25)' }} />
+    </View>
+  );
+}
+
+// ── Item card (design/item) ───────────────────────────────────────────────────
+function ItemCard({ item, onPress }: { item: any; onPress: () => void }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const press = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start(() => onPress());
+  };
+
+  const imgH = ITEM_W * 1.35;
+
+  return (
+    <Pressable onPress={press}>
+      <Animated.View style={[s.itemCard, { transform: [{ scale }] }]}>
+        <View style={[s.itemImgWrap, { height: imgH }]}>
+          <Image
+            source={{ uri: item.images?.[0] }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            transition={200}
+          />
+          {/* Price overlay */}
+          <View style={s.itemPriceOverlay}>
+            <Text style={s.itemPriceOverlayTxt}>₹{item.price?.toLocaleString()}</Text>
+          </View>
+          {/* Availability badge */}
+          <View style={[s.itemAvailBadge, item.availability === 'READY_MADE' && s.itemAvailBadgeReady]}>
+            <Text style={[s.itemAvailTxt, item.availability === 'READY_MADE' && s.itemAvailTxtReady]}>
+              {item.availability === 'READY_MADE' ? 'Ready' : 'Custom'}
+            </Text>
+          </View>
+        </View>
+        <View style={s.itemCaption}>
+          <Text style={s.itemTitle} numberOfLines={1}>{item.title ?? item.name}</Text>
+          <View style={s.itemMeta}>
+            <Text style={s.itemSubcat} numberOfLines={1}>{item.subcategoryName ?? ''}</Text>
+            <View style={s.itemLikes}>
+              <Heart size={9} color={Colors.textLight} />
+              <Text style={s.itemLikesTxt}>{item.views ?? 0}</Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
+export default function DesignerProfileScreen() {
+  const { id }   = useLocalSearchParams<{ id: string }>();
+  const router   = useRouter();
+  const insets   = useSafeAreaInsets();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const [designer,  setDesigner]  = useState<any>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [selCat,    setSelCat]    = useState<any>(null);
+  const [selSub,    setSelSub]    = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`${config.apiUrl}/public/designers/${id}`)
+      .then(r => r.json())
+      .then(data => {
+        setDesigner(data.designer);
+        if (data.designer?.categories?.length > 0) {
+          setSelCat(data.designer.categories[0]);
+        }
+      })
+      .catch(e => console.error(e))
+      .finally(() => {
+        setLoading(false);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 450, useNativeDriver: true }).start();
+      });
+  }, [id]);
+
+  // Flatten ALL items across all categories for the "top designs" section
+  const allItems: any[] = [];
+  designer?.categories?.forEach((cat: any) => {
+    cat.subcategories?.forEach((sub: any) => {
+      sub.items?.forEach((item: any) => {
+        allItems.push({ ...item, subcategoryName: sub.name, categoryName: cat.name });
+      });
+    });
+  });
+  // Sort by views desc, take top 10
+  const topItems = [...allItems].sort((a, b) => (b.views ?? 0) - (a.views ?? 0)).slice(0, 10);
+
+  // Items for currently selected subcategory
+  const subItems: any[] = selSub?.items?.map((item: any) => ({
+    ...item,
+    subcategoryName: selSub.name,
+  })) ?? [];
+
+  if (loading) return (
+    <View style={s.centered}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ActivityIndicator size="large" color={Colors.ink} />
+    </View>
+  );
+
+  if (!designer) return (
+    <View style={s.centered}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Text style={s.errTxt}>Designer not found</Text>
+      <Pressable style={s.retryBtn} onPress={() => router.back()}>
+        <Text style={s.retryTxt}>Go back</Text>
+      </Pressable>
+    </View>
+  );
+
+  return (
+    <View style={s.root}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* ── Floating header ── */}
+      <View style={[s.header, { paddingTop: insets.top }]}>
+        <View style={s.headerInner}>
+          <Pressable style={s.headerBtn} onPress={() => {
+            if (selSub) { setSelSub(null); } else { router.back(); }
+          }}>
+            <ArrowLeft size={20} color={Colors.text} />
+          </Pressable>
+
+          <View style={s.headerCenter}>
+            {selSub ? (
+              <>
+                <Text style={s.headerSub}>{selCat?.name}</Text>
+                <Text style={s.headerTitle}>{selSub.name}</Text>
+              </>
+            ) : (
+              <Text style={s.headerTitle} numberOfLines={1}>{designer.name}</Text>
+            )}
+          </View>
+
+          <Pressable style={s.headerBtn}>
+            <Share2 size={18} color={Colors.text} />
+          </Pressable>
+        </View>
+        <View style={s.headerRule} />
+      </View>
+
+      <Animated.ScrollView style={{ opacity: fadeAnim }} showsVerticalScrollIndicator={false}>
+
+        {/* ── Cover + identity ── */}
+        <View style={s.heroWrap}>
+          <CoverView uri={designer.coverImage} name={designer.name} height={200} />
+
+          {/* Avatar overlapping cover */}
+          <View style={s.identityRow}>
+            <View style={s.avatarRing}>
+              <AvatarView uri={designer.avatar} name={designer.name} size={64} />
+            </View>
+            <View style={s.identityInfo}>
+              <View style={s.nameRow}>
+                <Text style={s.designerName} numberOfLines={1}>{designer.name}</Text>
+                {designer.verified && <CheckCircle size={16} color={Colors.successText} />}
+              </View>
+              <View style={s.specRow}>
+                <Scissors size={12} color={Colors.textSecondary} />
+                <Text style={s.specTxt}>{designer.speciality}</Text>
+              </View>
+              <View style={s.locRow}>
+                <MapPin size={11} color={Colors.textLight} />
+                <Text style={s.locTxt}>{designer.location}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Stats band ── */}
+        <View style={s.statsBand}>
+          <View style={s.stat}>
+            <Text style={s.statVal}>★ {designer.rating?.toFixed(1)}</Text>
+            <Text style={s.statKey}>RATING</Text>
+          </View>
+          <View style={s.statSep} />
+          <View style={s.stat}>
+            <Text style={s.statVal}>{allItems.length}</Text>
+            <Text style={s.statKey}>DESIGNS</Text>
+          </View>
+          <View style={s.statSep} />
+          <View style={s.stat}>
+            <Text style={s.statVal}>{designer.experience ?? '—'}</Text>
+            <Text style={s.statKey}>EXP.</Text>
+          </View>
+          <View style={s.statSep} />
+          <View style={s.stat}>
+            <Text style={s.statVal}>{designer.categories?.length ?? 0}</Text>
+            <Text style={s.statKey}>CATEGORIES</Text>
+          </View>
+        </View>
+
+        {/* ── Bio ── */}
+        {designer.bio && (
+          <View style={s.bioSection}>
+            <Text style={s.bioTxt}>{designer.bio}</Text>
+          </View>
+        )}
+
+        {/* ── Tags ── */}
+        {(designer.tags ?? []).length > 0 && (
+          <View style={s.tagsRow}>
+            {(designer.tags ?? []).map((tag: string, i: number) => (
+              <View key={i} style={[s.tag, i === 0 && s.tagFirst]}>
+                <Text style={[s.tagTxt, i === 0 && s.tagTxtFirst]}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── Top designs — inline grid ── */}
+        {topItems.length > 0 && !selSub && (
+          <View style={s.section}>
+            <View style={s.sectionHead}>
+              <View style={s.sectionHeadLeft}>
+                <Zap size={14} color="#E24B4A" fill="#E24B4A" />
+                <Text style={s.sectionTitle}>Top designs</Text>
+              </View>
+              <Text style={s.sectionCount}>{topItems.length} items</Text>
+            </View>
+
+            {/* 2-col grid */}
+            <View style={s.gridWrap}>
+              {topItems.map((item, i) => (
+                <ItemCard
+                  key={item.id ?? i}
+                  item={item}
+                  onPress={() => router.push(`/design/${item.id}`)}
+                />
+              ))}
+              {/* Fill last row if odd count */}
+              {topItems.length % 2 !== 0 && <View style={{ width: ITEM_W }} />}
+            </View>
+          </View>
+        )}
+
+        {/* ── Category selector ── */}
+        {!selSub && designer.categories?.length > 0 && (
+          <View style={s.section}>
+            <View style={s.sectionHead}>
+              <View style={s.sectionHeadLeft}>
+                <Text style={s.rule}>——</Text>
+                <Text style={s.sectionLabel}>BROWSE BY CATEGORY</Text>
+              </View>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catRow}>
+              {designer.categories.map((cat: any) => (
+                <Pressable
+                  key={cat.id}
+                  style={[s.catPill, selCat?.id === cat.id && s.catPillActive]}
+                  onPress={() => { setSelCat(cat); setSelSub(null); }}
+                >
+                  <Text style={[s.catPillTxt, selCat?.id === cat.id && s.catPillTxtActive]}>{cat.name}</Text>
+                  <View style={[s.catCount, selCat?.id === cat.id && s.catCountActive]}>
+                    <Text style={[s.catCountTxt, selCat?.id === cat.id && s.catCountTxtActive]}>
+                      {cat.subcategories?.length ?? 0}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {/* Subcategories for selected category */}
+            {selCat && (
+              <View style={s.subList}>
+                <Text style={s.subListLabel}>{selCat.name} subcategories</Text>
+                {(selCat.subcategories ?? []).map((sub: any) => (
+                  <Pressable
+                    key={sub.id}
+                    style={({ pressed }) => [s.subRow, pressed && { opacity: 0.88 }]}
+                    onPress={() => setSelSub(sub)}
+                  >
+                    <View style={s.subRowLeft}>
+                      <View style={s.subDot} />
+                      <Text style={s.subName}>{sub.name}</Text>
+                    </View>
+                    <View style={s.subRight}>
+                      <Text style={s.subCount}>{sub.items?.length ?? 0} items</Text>
+                      <ChevronRight size={14} color={Colors.textLight} />
+                    </View>
+                  </Pressable>
+                ))}
+                {(selCat.subcategories ?? []).length === 0 && (
+                  <Text style={s.emptySubTxt}>No subcategories yet</Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Subcategory items view ── */}
+        {selSub && (
+          <View style={s.section}>
+            <View style={s.sectionHead}>
+              <View style={s.sectionHeadLeft}>
+                <Text style={s.sectionTitle}>{selSub.name}</Text>
+              </View>
+              <Text style={s.sectionCount}>{subItems.length} items</Text>
+            </View>
+
+            {subItems.length === 0 ? (
+              <View style={s.emptyItems}>
+                <Scissors size={36} color={Colors.border} />
+                <Text style={s.emptyItemsTxt}>No items in this subcategory yet</Text>
+              </View>
+            ) : (
+              <View style={s.gridWrap}>
+                {subItems.map((item, i) => (
+                  <ItemCard
+                    key={item.id ?? i}
+                    item={item}
+                    onPress={() => router.push(`/design/${item.id}`)}
+                  />
+                ))}
+                {subItems.length % 2 !== 0 && <View style={{ width: ITEM_W }} />}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Post request CTA ── */}
+        <Pressable
+          style={({ pressed }) => [s.cta, pressed && { opacity: 0.9 }]}
+          onPress={() => router.push('/post-request' as any)}
+        >
+          <View style={s.ctaLeft}>
+            <Text style={s.ctaEyebrow}>COLLABORATE</Text>
+            <Text style={s.ctaTitle}>Work with {designer.name.split(' ')[0]}?</Text>
+            <Text style={s.ctaBody}>Post a requirement and they'll bid on your project.</Text>
+          </View>
+          <View style={s.ctaCircle}>
+            <ArrowUpRight size={20} color="#fff" />
+          </View>
+        </Pressable>
+
+        <View style={{ height: 60 }} />
+      </Animated.ScrollView>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.background },
+  centered: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    gap: 12, backgroundColor: Colors.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  errTxt: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  retryBtn: { backgroundColor: Colors.ink, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 },
+  retryTxt: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
+
+  // ── Header ──
+  header: { backgroundColor: Colors.surface },
+  headerInner: {
+    flexDirection: 'row' as const,
     alignItems: 'center',
-    backgroundColor: Colors.background,
-  },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  backBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-  },
-  backBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.white,
-  },
-  header: {
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-  },
-  headerBackBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    textAlign: 'center',
-    marginHorizontal: 12,
-  },
-  headerRight: {
-    flexDirection: 'row',
     gap: 12,
   },
-  headerIcon: {
-    padding: 4,
+  headerBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 0.5, borderColor: Colors.border,
+    justifyContent: 'center', alignItems: 'center',
   },
-  breadcrumb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    gap: 4,
-  },
-  breadcrumbText: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  breadcrumbCurrent: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  profileSection: {
-    padding: 20,
-  },
-  coverImage: {
-    width: '100%',
-    height: 150,
-    borderRadius: 12,
-    backgroundColor: Colors.cardAlt,
-    marginBottom: 16,
-  },
-  profileInfo: {
-    flexDirection: 'row',
+  headerCenter: { flex: 1, alignItems: 'center' as const },
+  headerSub: { fontSize: 9, fontWeight: '700' as const, color: Colors.textLight, letterSpacing: 2 },
+  headerTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.2 },
+  headerRule: { height: 2, backgroundColor: Colors.ink },
+
+  // ── Hero ──
+  heroWrap: { backgroundColor: Colors.surface },
+  identityRow: {
+    flexDirection: 'row' as const,
     alignItems: 'flex-end',
-    marginTop: -40,
-    marginBottom: 16,
-    paddingHorizontal: 4,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 0,
+    marginTop: -32,
   },
-  profileAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  avatarRing: {
+    borderRadius: 36,
     borderWidth: 3,
-    borderColor: Colors.white,
-    backgroundColor: Colors.cardAlt,
+    borderColor: Colors.surface,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
   },
-  profileDetails: {
-    flex: 1,
-    marginLeft: 16,
-    marginBottom: 8,
+  identityInfo: { flex: 1, paddingBottom: 2, gap: 3 },
+  nameRow: { flexDirection: 'row' as const, alignItems: 'center', gap: 7 },
+  designerName: { fontSize: 20, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4, flex: 1 },
+  specRow: { flexDirection: 'row' as const, alignItems: 'center', gap: 5 },
+  specTxt: { fontSize: 13, color: Colors.textSecondary },
+  locRow: { flexDirection: 'row' as const, alignItems: 'center', gap: 4 },
+  locTxt: { fontSize: 12, color: Colors.textLight },
+
+  // ── Stats band ──
+  statsBand: {
+    flexDirection: 'row' as const,
+    backgroundColor: Colors.surface,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.border,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.border,
+    paddingVertical: 14,
   },
-  profileNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  profileName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  profileSpeciality: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  },
-  profileSpecialityText: {
-    fontSize: 14,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  profileLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  profileLocationText: {
-    fontSize: 12,
-    color: Colors.textLight,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: Colors.textLight,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: Colors.borderLight,
-  },
+  stat: { flex: 1, alignItems: 'center' as const, gap: 3 },
+  statVal: { fontSize: 15, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
+  statKey: { fontSize: 7, fontWeight: '800' as const, color: Colors.textLight, letterSpacing: 1.5 },
+  statSep: { width: 0.5, height: 28, backgroundColor: Colors.border, alignSelf: 'center' as const },
+
+  // ── Bio + tags ──
   bioSection: {
-    marginBottom: 16,
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4,
   },
-  bioText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
-  },
-  tagsSection: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  bioTxt: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21 },
+  tagsRow: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
     gap: 8,
-    marginBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   tag: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  tagText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  categoriesSection: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 12,
-    paddingHorizontal: 20,
-  },
-  categoriesScrollContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  categoryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.card,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 8,
-    minWidth: 100,
-    justifyContent: 'space-between',
-  },
-  categoryCardActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  categoryCardPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.96 }],
-  },
-  categoryName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  categoryNameActive: {
-    color: Colors.white,
-  },
-  categoryBadge: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 16,
-    minWidth: 24,
-    alignItems: 'center',
-  },
-  categoryBadgeActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  categoryBadgeText: {
-    fontSize: 12,
-    color: Colors.textLight,
-  },
-  categoryBadgeTextActive: {
-    color: Colors.white,
-  },
-  subcategoriesSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  subcategoriesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  subcategoriesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  expandAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-  },
-  expandAllText: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  dropdownContainer: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  dropdownItemActive: {
-    backgroundColor: Colors.primary,
-  },
-  dropdownItemPressed: {
-    opacity: 0.8,
-  },
-  dropdownItemLeft: {
-    flex: 1,
-  },
-  dropdownItemName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  dropdownItemNameActive: {
-    color: Colors.white,
-  },
-  dropdownItemBadge: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  dropdownItemBadgeActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  dropdownItemBadgeText: {
-    fontSize: 12,
-    color: Colors.textLight,
-  },
-  dropdownItemBadgeTextActive: {
-    color: Colors.white,
-  },
-  emptySubcategories: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  emptySubcategoriesText: {
-    fontSize: 14,
-    color: Colors.textLight,
-  },
-  itemsContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  itemsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  itemsHeaderCategory: {
-    fontSize: 14,
-    color: Colors.primary,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  itemsHeaderTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  itemsHeaderCount: {
-    fontSize: 14,
-    color: Colors.textLight,
-  },
-  itemRow: {
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  itemCard: {
-    width: (width - 48) / 2,
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  itemCardPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  itemImage: {
-    width: '100%',
-    height: 160,
-    backgroundColor: Colors.cardAlt,
-  },
-  itemDetails: {
-    padding: 12,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  itemPrice: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginBottom: 6,
-  },
-  itemBadge: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
     borderRadius: 4,
-    alignSelf: 'flex-start',
+    borderWidth: 0.5,
+    borderColor: Colors.border,
   },
-  itemBadgeText: {
-    fontSize: 10,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-  },
-  emptyItems: {
+  tagFirst: { backgroundColor: Colors.ink, borderColor: Colors.ink },
+  tagTxt: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  tagTxtFirst: { color: '#fff' },
+
+  // ── Sections ──
+  section: { marginTop: 24 },
+  sectionHead: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 12,
+    paddingHorizontal: 20,
+    marginBottom: 14,
   },
-  emptyItemsText: {
-    fontSize: 14,
-    color: Colors.textLight,
-    textAlign: 'center',
+  sectionHeadLeft: { flexDirection: 'row' as const, alignItems: 'center', gap: 7 },
+  sectionTitle: { fontSize: 19, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
+  sectionCount: { fontSize: 12, color: Colors.textLight, fontWeight: '500' as const },
+  rule: { fontSize: 10, color: Colors.border, letterSpacing: 1 },
+  sectionLabel: { fontSize: 9, fontWeight: '800' as const, color: Colors.textLight, letterSpacing: 3 },
+
+  // ── Grid ──
+  gridWrap: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+
+  // ── Item card ──
+  itemCard: {
+    width: ITEM_W,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  itemImgWrap: {
+    width: '100%',
+    backgroundColor: Colors.surfaceAlt,
+    position: 'relative' as const,
+  },
+  itemPriceOverlay: {
+    position: 'absolute' as const,
+    bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(17,17,17,0.6)',
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  itemPriceOverlayTxt: {
+    fontSize: 13, fontWeight: '800' as const, color: '#fff',
+  },
+  itemAvailBadge: {
+    position: 'absolute' as const, top: 8, right: 8,
+    backgroundColor: 'rgba(17,17,17,0.55)',
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4,
+  },
+  itemAvailBadgeReady: { backgroundColor: Colors.successBg },
+  itemAvailTxt: { fontSize: 9, fontWeight: '700' as const, color: '#fff', letterSpacing: 0.5 },
+  itemAvailTxtReady: { color: Colors.successText },
+  itemCaption: { padding: 10, gap: 3 },
+  itemTitle: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+  itemMeta: { flexDirection: 'row' as const, justifyContent: 'space-between', alignItems: 'center' },
+  itemSubcat: { fontSize: 10, color: Colors.textSecondary, flex: 1 },
+  itemLikes: { flexDirection: 'row' as const, alignItems: 'center', gap: 3 },
+  itemLikesTxt: { fontSize: 10, color: Colors.textLight },
+
+  // ── Category selector ──
+  catRow: { paddingHorizontal: 20, gap: 8, paddingBottom: 4 },
+  catPill: {
+    flexDirection: 'row' as const, alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 20, backgroundColor: Colors.surface,
+    borderWidth: 0.5, borderColor: Colors.border,
+  },
+  catPillActive: { backgroundColor: Colors.ink, borderColor: Colors.ink },
+  catPillTxt: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  catPillTxtActive: { color: '#fff', fontWeight: '700' as const },
+  catCount: {
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
+  },
+  catCountActive: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  catCountTxt: { fontSize: 11, color: Colors.textLight, fontWeight: '600' as const },
+  catCountTxtActive: { color: '#fff' },
+
+  // ── Sub list ──
+  subList: { marginTop: 14, paddingHorizontal: 20 },
+  subListLabel: {
+    fontSize: 9, fontWeight: '800' as const, color: Colors.textLight,
+    letterSpacing: 2.5, marginBottom: 10,
+  },
+  subRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  subRowLeft: { flexDirection: 'row' as const, alignItems: 'center', gap: 10 },
+  subDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.maskedText },
+  subName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  subRight: { flexDirection: 'row' as const, alignItems: 'center', gap: 8 },
+  subCount: { fontSize: 12, color: Colors.textLight },
+  emptySubTxt: { fontSize: 13, color: Colors.textLight, paddingVertical: 20, textAlign: 'center' as const },
+
+  emptyItems: { alignItems: 'center' as const, paddingVertical: 48, gap: 10 },
+  emptyItemsTxt: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const },
+
+  // ── CTA ──
+  cta: {
+    flexDirection: 'row' as const,
+    backgroundColor: Colors.ink,
+    marginHorizontal: 20, marginTop: 24,
+    borderRadius: 20, padding: 22,
+    alignItems: 'center', gap: 16,
+  },
+  ctaLeft: { flex: 1, gap: 5 },
+  ctaEyebrow: { fontSize: 8, fontWeight: '800' as const, color: 'rgba(255,255,255,0.35)', letterSpacing: 3 },
+  ctaTitle: { fontSize: 20, fontWeight: '900' as const, color: '#fff', letterSpacing: -0.4 },
+  ctaBody: { fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 16 },
+  ctaCircle: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
 });

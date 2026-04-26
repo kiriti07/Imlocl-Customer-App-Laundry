@@ -1,470 +1,335 @@
 // app/(tabs)/stitching/designers/index.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  FlatList,
-  Dimensions,
+  View, Text, StyleSheet, TextInput, Pressable,
+  ActivityIndicator, FlatList, RefreshControl,
+  Animated, ScrollView, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Filter, Users, Star, MapPin } from 'lucide-react-native';
-import { Image } from 'expo-image';
-
+import { Search, X, Users, AlertCircle, LayoutGrid, List } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useRouter } from 'expo-router';
+import { EditorialCard, HorizontalCard, FeaturedDesignerCard } from '@/components/designer/DesignerCard';
 import { config } from '@/config';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = config.apiUrl;
 
-const categories = [
-  { id: 'all', label: 'All', icon: '👗' },
-  { id: 'bridal', label: 'Bridal', icon: '👰' },
-  { id: 'women', label: "Women's", icon: '👚' },
-  { id: 'men', label: "Men's", icon: '👔' },
-  { id: 'kids', label: 'Kids', icon: '🧸' },
-  { id: 'formal', label: 'Formal', icon: '💼' },
-  { id: 'casual', label: 'Casual', icon: '👕' },
+const CATS = [
+  { id: 'all', label: 'All' },
+  { id: 'bridal', label: 'Bridal' },
+  { id: 'women', label: "Women's" },
+  { id: 'men', label: "Men's" },
+  { id: 'kids', label: 'Kids' },
+  { id: 'formal', label: 'Formal' },
+  { id: 'casual', label: 'Casual' },
 ];
 
 export default function DesignersScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [designers, setDesigners] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [search, setSearch]       = useState('');
+  const [cat, setCat]             = useState('all');
+  const [view, setView]           = useState<'grid' | 'list'>('grid');
+  const [designers, setDesigners] = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [focused, setFocused]     = useState(false);
+
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
 
   useEffect(() => {
-    fetchDesigners();
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
   }, []);
 
-  const fetchDesigners = async () => {
+  const fetchDesigners = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else { setLoading(true); setError(null); }
     try {
-      const response = await fetch(`${API_BASE_URL}/public/designers`);
-      const data = await response.json();
-      setDesigners(data.designers || []);
-    } catch (error) {
-      console.error('Error fetching designers:', error);
+      const res  = await fetch(`${config.apiUrl}/public/designers`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || `Error ${res.status}`);
+      setDesigners(data.designers ?? []);
+    } catch (e: any) {
+      setError(e.message ?? 'Could not load');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
-  const filteredDesigners = designers.filter((designer: any) => {
-    const matchesSearch = !searchQuery ||
-      designer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      designer.speciality.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = selectedCategory === 'all' ||
-      designer.tags?.some((tag: string) => 
-        tag.toLowerCase().includes(selectedCategory.toLowerCase())
-      );
-    
-    return matchesSearch && matchesCategory;
+  useEffect(() => { fetchDesigners(); }, [fetchDesigners]);
+
+  const filtered = designers.filter(d => {
+    const q = search.toLowerCase();
+    const matchS = !search || d.name?.toLowerCase().includes(q) || d.speciality?.toLowerCase().includes(q) || d.tags?.some((t: string) => t.toLowerCase().includes(q));
+    const matchC = cat === 'all' || d.tags?.some((t: string) => t.toLowerCase().includes(cat));
+    return matchS && matchC;
   });
 
-  const renderCategoryItem = ({ item }: { item: any }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.categoryItem,
-        selectedCategory === item.id && styles.categoryItemActive,
-        pressed && styles.categoryItemPressed,
-      ]}
-      onPress={() => setSelectedCategory(item.id)}
-    >
-      <Text style={styles.categoryIcon}>{item.icon}</Text>
-      <Text style={[
-        styles.categoryLabel,
-        selectedCategory === item.id && styles.categoryLabelActive,
-      ]}>
-        {item.label}
-      </Text>
-      {selectedCategory === item.id && (
-        <View style={styles.categoryActiveIndicator} />
-      )}
-    </Pressable>
+  const featured  = filtered[0] ?? null;
+  const rest      = filtered.slice(1);
+
+  if (loading) return (
+    <View style={s.centered}>
+      <ActivityIndicator size="large" color={Colors.ink} />
+      <Text style={s.loadTxt}>Finding designers…</Text>
+    </View>
   );
 
-  const renderDesignerCard = ({ item }: { item: any }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.designerCard,
-        pressed && styles.designerCardPressed,
-      ]}
-      onPress={() => router.push(`/designer/${item.id}`)}
-    >
-      <Image source={{ uri: item.avatar }} style={styles.designerAvatar} />
-      <View style={styles.designerInfo}>
-        <View style={styles.designerHeader}>
-          <Text style={styles.designerName}>{item.name}</Text>
-          {item.verified && (
-            <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>✓</Text>
-            </View>
-          )}
-        </View>
-        
-        <Text style={styles.designerSpeciality}>{item.speciality}</Text>
-        
-        <View style={styles.designerMeta}>
-          <View style={styles.ratingContainer}>
-            <Star size={14} color="#FFB800" fill="#FFB800" />
-            <Text style={styles.ratingText}>{item.rating}</Text>
-          </View>
-          <View style={styles.dot} />
-          <MapPin size={12} color={Colors.textLight} />
-          <Text style={styles.locationText}>{item.location}</Text>
-        </View>
-
-        <View style={styles.designerTags}>
-          {item.tags?.slice(0, 3).map((tag: string, index: number) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </Pressable>
+  if (error) return (
+    <View style={s.centered}>
+      <AlertCircle size={36} color={Colors.dangerText} />
+      <Text style={s.errTitle}>Couldn't load</Text>
+      <Text style={s.errBody}>{error}</Text>
+      <Pressable style={s.retryBtn} onPress={() => fetchDesigners()}>
+        <Text style={s.retryTxt}>Try again</Text>
+      </Pressable>
+    </View>
   );
-
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Designers</Text>
-          <Text style={styles.subtitle}>Discover talented creators</Text>
+    <View style={[s.root, { paddingTop: insets.top }]}>
+
+      {/* ── Magazine header ── */}
+      <View style={s.header}>
+        {/* Masthead */}
+        <View style={s.masthead}>
+          <View style={s.mastheadLeft}>
+            <Text style={s.mastheadLabel}>IMLOCL STUDIO</Text>
+            <Text style={s.mastheadTitle}>Designers</Text>
+            <Text style={s.mastheadSub}>
+              {designers.length > 0 ? `${designers.length} creators · Hyderabad` : 'Browse creators'}
+            </Text>
+          </View>
+          {/* View toggle */}
+          <View style={s.toggleRow}>
+            <Pressable style={[s.toggleBtn, view === 'grid' && s.toggleActive]} onPress={() => setView('grid')}>
+              <LayoutGrid size={14} color={view === 'grid' ? '#fff' : Colors.textSecondary} />
+            </Pressable>
+            <Pressable style={[s.toggleBtn, view === 'list' && s.toggleActive]} onPress={() => setView('list')}>
+              <List size={14} color={view === 'list' ? '#fff' : Colors.textSecondary} />
+            </Pressable>
+          </View>
         </View>
+
+        {/* Ruled line — magazine separator */}
+        <View style={s.mastheadRule} />
+
+        {/* Search */}
+        <View style={[s.searchBar, focused && s.searchBarFocused]}>
+          <Search size={14} color={Colors.textLight} />
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search by name or specialty…"
+            placeholderTextColor={Colors.textLight}
+            value={search}
+            onChangeText={setSearch}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+              <X size={13} color={Colors.textLight} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Category pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillsRow}>
+          {CATS.map(c => (
+            <Pressable
+              key={c.id}
+              style={[s.pill, cat === c.id && s.pillActive]}
+              onPress={() => setCat(c.id)}
+            >
+              <Text style={[s.pillTxt, cat === c.id && s.pillTxtActive]}>{c.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Search size={20} color={Colors.textLight} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name or specialty..."
-          placeholderTextColor={Colors.textLight}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery('')}>
-            <Text style={styles.clearText}>Clear</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Categories */}
-      <View style={styles.categoriesWrapper}>
-        <FlatList
-          data={categories}
-          renderItem={renderCategoryItem}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesList}
-        />
-      </View>
-
-      {/* Results Count */}
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsCount}>
-          {filteredDesigners.length} designer{filteredDesigners.length !== 1 ? 's' : ''} found
-        </Text>
-        <Pressable style={styles.filterButton}>
-          <Filter size={18} color={Colors.text} />
-          <Text style={styles.filterText}>Filter</Text>
-        </Pressable>
-      </View>
-
-      {/* Designers Grid */}
-      {filteredDesigners.length > 0 ? (
-        <FlatList
-          data={filteredDesigners}
-          renderItem={renderDesignerCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.designersList}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <View style={styles.emptyState}>
-          <Users size={60} color={Colors.textLight} />
-          <Text style={styles.emptyTitle}>No designers found</Text>
-          <Text style={styles.emptySubtitle}>Try adjusting your search or filters</Text>
+      {/* ── Stats band ── */}
+      {filtered.length > 0 && (
+        <View style={s.statsBand}>
+          <Text style={s.statsItem}>{filtered.length} designer{filtered.length !== 1 ? 's' : ''}</Text>
+          <Text style={s.statsDot}>·</Text>
+          <Text style={s.statsItem}>{filtered.filter(d => d.verified).length} verified</Text>
+          <Text style={s.statsDot}>·</Text>
+          <Text style={s.statsItem}>Hyderabad</Text>
         </View>
       )}
+
+      {/* ── Content ── */}
+      <Animated.ScrollView
+        style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchDesigners(true)} tintColor={Colors.ink} />
+        }
+      >
+        {filtered.length === 0 ? (
+          <View style={s.empty}>
+            <Users size={44} color={Colors.border} />
+            <Text style={s.emptyTitle}>No designers found</Text>
+            <Text style={s.emptyBody}>{search ? 'Try a different keyword' : 'No designers in this category yet'}</Text>
+          </View>
+        ) : (
+          <View style={s.content}>
+
+            {/* ── Hero featured card ── */}
+            {featured && view === 'grid' && (
+              <View style={s.heroSection}>
+                <View style={s.sectionHead}>
+                  <Text style={s.sectionRule}>———</Text>
+                  <Text style={s.sectionLabel}>EDITOR'S PICK</Text>
+                  <Text style={s.sectionRule}>———</Text>
+                </View>
+                <FeaturedDesignerCard designer={featured} />
+              </View>
+            )}
+
+            {/* ── Rest of designers ── */}
+            {(view === 'grid' ? rest : filtered).length > 0 && (
+              <View>
+                <View style={s.sectionHead}>
+                  <Text style={s.sectionRule}>———</Text>
+                  <Text style={s.sectionLabel}>{view === 'grid' ? 'ALL DESIGNERS' : 'DIRECTORY'}</Text>
+                  <Text style={s.sectionRule}>———</Text>
+                </View>
+
+                {(view === 'grid' ? rest : filtered).map((d, i) =>
+                  view === 'grid'
+                    ? <EditorialCard key={d.id} designer={d} index={i + 1} />
+                    : <HorizontalCard key={d.id} designer={d} index={i} />
+                )}
+              </View>
+            )}
+
+          </View>
+        )}
+        <View style={{ height: 60 }} />
+      </Animated.ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.background },
+  centered: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    padding: 32, gap: 12, backgroundColor: Colors.background,
   },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  loadTxt: { fontSize: 14, color: Colors.textSecondary, marginTop: 8 },
+  errTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  errBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
+  retryBtn: { backgroundColor: Colors.ink, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, marginTop: 4 },
+  retryTxt: { color: '#fff', fontSize: 14, fontWeight: '700' as const },
+
+  // Header
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#1A1A1A',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#666666',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    marginBottom: 16,
+    backgroundColor: Colors.surface,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1A1A1A',
-    marginLeft: 10,
-    padding: 0,
-  },
-  clearText: {
-    fontSize: 14,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  categoriesWrapper: {
-    marginBottom: 16,
-  },
-  categoriesList: {
-    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.border,
     gap: 10,
   },
-  categoryItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 30,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    flexDirection: 'row',
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  categoryItemActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  categoryItemPressed: {
-    transform: [{ scale: 0.96 }],
-  },
-  categoryIcon: {
-    fontSize: 16,
-  },
-  categoryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-  categoryLabelActive: {
-    color: '#FFFFFF',
-  },
-  categoryActiveIndicator: {
-    position: 'absolute',
-    bottom: -4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#FFFFFF',
-  },
-  resultsHeader: {
-    flexDirection: 'row',
+  masthead: {
+    flexDirection: 'row' as const,
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  mastheadLeft: { gap: 2 },
+  mastheadLabel: {
+    fontSize: 8, fontWeight: '800' as const,
+    color: Colors.textLight, letterSpacing: 3,
+  },
+  mastheadTitle: {
+    fontSize: 30, fontWeight: '900' as const,
+    color: Colors.text, letterSpacing: -1,
+    lineHeight: 34,
+  },
+  mastheadSub: { fontSize: 11, color: Colors.textLight, marginTop: 1 },
+  mastheadRule: {
+    height: 2,
+    backgroundColor: Colors.ink,
+    marginBottom: 2,
+  },
+  toggleRow: {
+    flexDirection: 'row' as const,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 10,
+    padding: 2,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    marginTop: 4,
+  },
+  toggleBtn: {
+    width: 32, height: 30, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  toggleActive: { backgroundColor: Colors.ink },
+
+  searchBar: {
+    flexDirection: 'row' as const,
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    gap: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
   },
-  resultsCount: {
-    fontSize: 14,
-    color: '#666666',
-    fontWeight: '500',
+  searchBarFocused: { borderColor: Colors.ink, backgroundColor: Colors.inkFaint },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.text, padding: 0 },
+
+  pillsRow: { gap: 7, paddingBottom: 2 },
+  pill: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 20, backgroundColor: Colors.surface,
+    borderWidth: 0.5, borderColor: Colors.border,
   },
-  filterButton: {
-    flexDirection: 'row',
+  pillActive: { backgroundColor: Colors.ink, borderColor: Colors.ink },
+  pillTxt: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  pillTxtActive: { color: '#fff' },
+
+  // Stats band
+  statsBand: {
+    flexDirection: 'row' as const,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
   },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-  designersList: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  designerCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  designerCardPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
-  },
-  designerAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F5F5F5',
-    marginRight: 16,
-  },
-  designerInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  designerHeader: {
-    flexDirection: 'row',
+  statsItem: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+  statsDot: { fontSize: 11, color: Colors.border },
+
+  // Content
+  content: { padding: 16 },
+
+  heroSection: { marginBottom: 8 },
+  sectionHead: {
+    flexDirection: 'row' as const,
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    gap: 10,
+    marginBottom: 14,
+    marginTop: 4,
   },
-  designerName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
+  sectionRule: { color: Colors.border, fontSize: 10, letterSpacing: 1 },
+  sectionLabel: {
+    fontSize: 9, fontWeight: '800' as const,
+    color: Colors.textLight, letterSpacing: 3,
   },
-  verifiedBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verifiedText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  designerSpeciality: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 6,
-  },
-  designerMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#DDDDDD',
-  },
-  locationText: {
-    fontSize: 12,
-    color: '#999999',
-  },
-  designerTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  tag: {
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  tagText: {
-    fontSize: 11,
-    color: '#666666',
-    fontWeight: '500',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    marginTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#999999',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+
+  empty: { alignItems: 'center', paddingTop: 64, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  emptyBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 19, paddingHorizontal: 24 },
 });

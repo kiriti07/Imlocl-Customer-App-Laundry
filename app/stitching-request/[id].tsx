@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,24 +11,52 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import {
   Star,
-  IndianRupee,
   Clock,
   Check,
   MessageSquare,
+  ShieldCheck,
+  AlertCircle,
+  Scissors,
+  IndianRupee,
+  Lock,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { stitchingRequests } from '@/mocks/stitchingRequests';
 
+// Generate stable masked code per bid index
+function maskedCode(idx: number): string {
+  const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+  return `Tailor #${letters[idx % 6]}${Math.floor(idx / 6) + 1}`;
+}
+
+function StarRow({ rating }: { rating: number }) {
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <View
+          key={s}
+          style={[
+            styles.starShape,
+            { backgroundColor: s <= Math.round(rating) ? Colors.star : Colors.border },
+          ]}
+        />
+      ))}
+      <Text style={styles.ratingNum}>{rating}</Text>
+    </View>
+  );
+}
+
 export default function StitchingRequestDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [contactBlocked, setContactBlocked] = useState(false);
 
   const request = useMemo(() => stitchingRequests.find((r) => r.id === id), [id]);
 
   if (!request) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Not Found' }} />
-        <View style={styles.emptyState}>
+        <Stack.Screen options={{ title: 'Not found' }} />
+        <View style={styles.centered}>
           <Text style={styles.emptyTitle}>Request not found</Text>
         </View>
       </View>
@@ -36,137 +64,199 @@ export default function StitchingRequestDetail() {
   }
 
   const handleAcceptBid = (bidId: string) => {
-    Alert.alert('Accept Bid', 'Do you want to accept this bid?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Accept', onPress: () => console.log('Bid accepted:', bidId) },
-    ]);
+    Alert.alert(
+      'Connect with tailor?',
+      'Accepting this bid will initiate payment. Their identity will be revealed after payment is complete.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Accept & Pay',
+          style: 'default',
+          onPress: () => console.log('Bid accepted:', bidId),
+        },
+      ]
+    );
   };
+
+  const isOpen = request.status === 'open';
 
   return (
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Request Details',
+          title: 'Request details',
           headerStyle: { backgroundColor: Colors.surface },
           headerTintColor: Colors.text,
-          headerTitleStyle: { fontWeight: '700' },
+          headerTitleStyle: { fontWeight: '700', fontSize: 16 },
         }}
       />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.customerRow}>
-          {request.customerAvatar ? (
-            <Image source={{ uri: request.customerAvatar }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarInitial}>{request.customerName[0]}</Text>
-            </View>
-          )}
-          <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>{request.customerName}</Text>
-            <Text style={styles.customerDate}>Posted on {request.createdAt}</Text>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
+        {/* ── Top meta ── */}
+        <View style={styles.topMeta}>
+          <View style={styles.outfitPill}>
+            <Scissors size={11} color={Colors.maskedText} />
+            <Text style={styles.outfitPillText}>{request.outfitType}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: request.status === 'open' ? Colors.success + '20' : Colors.warm + '20' }]}>
-            <Text style={[styles.statusText, { color: request.status === 'open' ? Colors.success : Colors.warm }]}>
-              {request.status === 'open' ? 'Open' : 'In Progress'}
+          <View style={[styles.statusPill, isOpen ? styles.statusOpen : styles.statusProg]}>
+            <Text style={[styles.statusPillText, isOpen ? styles.statusOpenText : styles.statusProgText]}>
+              {isOpen ? 'Open' : 'In progress'}
             </Text>
           </View>
         </View>
 
+        {/* ── Title & description ── */}
         <Text style={styles.title}>{request.title}</Text>
         <Text style={styles.description}>{request.description}</Text>
 
+        {/* ── Details grid ── */}
         <View style={styles.detailsGrid}>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Outfit Type</Text>
-            <Text style={styles.detailValue}>{request.outfitType}</Text>
-          </View>
-          <View style={styles.detailItem}>
+          <View style={styles.detailCell}>
             <Text style={styles.detailLabel}>Budget</Text>
-            <Text style={[styles.detailValue, { color: Colors.primary }]}>₹{request.budget.toLocaleString()}</Text>
+            <Text style={[styles.detailValue, styles.detailValueBudget]}>
+              ₹{request.budget.toLocaleString()}
+            </Text>
           </View>
           {request.deadline && (
-            <View style={styles.detailItem}>
+            <View style={styles.detailCell}>
               <Text style={styles.detailLabel}>Deadline</Text>
               <Text style={styles.detailValue}>{request.deadline}</Text>
             </View>
           )}
+          <View style={styles.detailCell}>
+            <Text style={styles.detailLabel}>Bids received</Text>
+            <Text style={styles.detailValue}>{request.bids.length}</Text>
+          </View>
         </View>
 
-        {request.images.length > 0 && (
-          <View style={styles.imagesSection}>
-            <Text style={styles.sectionTitle}>Reference Images</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesRow}>
-              {request.images.map((img, idx) => (
-                <Image key={idx} source={{ uri: img }} style={styles.refImage} />
+        {/* ── Reference images ── */}
+        {request.images?.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Reference images</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.imagesRow}
+            >
+              {request.images.map((img: string, i: number) => (
+                <Image key={i} source={{ uri: img }} style={styles.refImage} />
               ))}
             </ScrollView>
           </View>
         )}
 
-        <View style={styles.bidsSection}>
-          <View style={styles.bidsHeader}>
-            <Text style={styles.sectionTitle}>Bids ({request.bids.length})</Text>
+        {/* ── Masked identity notice ── */}
+        <View style={styles.maskedNotice}>
+          <ShieldCheck size={15} color={Colors.maskedText} />
+          <View style={styles.maskedNoticeText}>
+            <Text style={styles.maskedNoticeTitle}>Identities are protected</Text>
+            <Text style={styles.maskedNoticeBody}>
+              Tailors appear as coded names (e.g. Tailor #A1). Their real name and contact are revealed only after you accept a bid and complete payment.
+            </Text>
           </View>
+        </View>
+
+        {/* ── Bids ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Bids ({request.bids.length})
+          </Text>
 
           {request.bids.length === 0 ? (
             <View style={styles.noBids}>
-              <MessageSquare size={36} color={Colors.textLight} />
-              <Text style={styles.noBidsText}>No bids yet</Text>
-              <Text style={styles.noBidsSubtext}>Tailors and designers will bid on this request</Text>
+              <MessageSquare size={32} color={Colors.border} />
+              <Text style={styles.noBidsTitle}>No bids yet</Text>
+              <Text style={styles.noBidsBody}>Tailors and designers will respond soon</Text>
             </View>
           ) : (
-            request.bids.map((bid) => (
-              <View key={bid.id} style={[styles.bidCard, bid.isAccepted && styles.bidAccepted]}>
-                <View style={styles.bidHeader}>
-                  <View style={styles.bidPartner}>
-                    {bid.partnerAvatar ? (
-                      <Image source={{ uri: bid.partnerAvatar }} style={styles.bidAvatar} />
-                    ) : (
-                      <View style={[styles.bidAvatar, styles.avatarPlaceholder]}>
-                        <Text style={styles.avatarInitial}>{bid.partnerName[0]}</Text>
+            request.bids.map((bid: any, idx: number) => {
+              const code = maskedCode(idx);
+              const isAccepted = bid.isAccepted;
+              return (
+                <View
+                  key={bid.id}
+                  style={[
+                    styles.bidCard,
+                    isAccepted && styles.bidCardAccepted,
+                    idx === 0 && styles.bidCardTop,
+                  ]}
+                >
+                  {/* Top bid badge */}
+                  {idx === 0 && !isAccepted && (
+                    <View style={styles.topBidBadge}>
+                      <Text style={styles.topBidBadgeText}>Top bid</Text>
+                    </View>
+                  )}
+
+                  {/* Bid header */}
+                  <View style={styles.bidHeader}>
+                    <View style={styles.maskedAvatar}>
+                      <Text style={styles.maskedAvatarText}>
+                        {code.slice(-2)}
+                      </Text>
+                    </View>
+                    <View style={styles.bidHeaderInfo}>
+                      <Text style={styles.bidCode}>{code}</Text>
+                      <StarRow rating={bid.partnerRating ?? 4.5} />
+                    </View>
+                    {isAccepted && (
+                      <View style={styles.acceptedPill}>
+                        <Check size={12} color={Colors.successText} />
+                        <Text style={styles.acceptedPillText}>Accepted</Text>
                       </View>
                     )}
-                    <View>
-                      <Text style={styles.bidPartnerName}>{bid.partnerName}</Text>
-                      <View style={styles.bidRating}>
-                        <Star size={12} color={Colors.warm} fill={Colors.warm} />
-                        <Text style={styles.bidRatingText}>{bid.partnerRating}</Text>
-                      </View>
+                  </View>
+
+                  {/* Message */}
+                  <Text style={styles.bidMessage}>{bid.message}</Text>
+
+                  {/* Price + days */}
+                  <View style={styles.bidMeta}>
+                    <View style={styles.bidMetaItem}>
+                      <IndianRupee size={13} color={Colors.text} />
+                      <Text style={styles.bidPrice}>₹{bid.price.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.bidMetaDivider} />
+                    <View style={styles.bidMetaItem}>
+                      <Clock size={13} color={Colors.textLight} />
+                      <Text style={styles.bidDays}>{bid.daysToComplete} days</Text>
                     </View>
                   </View>
-                  {bid.isAccepted && (
-                    <View style={styles.acceptedBadge}>
-                      <Check size={14} color={Colors.success} />
-                      <Text style={styles.acceptedText}>Accepted</Text>
+
+                  {/* Contact block warning */}
+                  {contactBlocked && (
+                    <View style={styles.contactBlockWarn}>
+                      <AlertCircle size={13} color={Colors.warnText} />
+                      <Text style={styles.contactBlockText}>
+                        Contact sharing is not allowed before payment. Accept this bid to unlock contact details.
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Accept CTA */}
+                  {!isAccepted && isOpen && (
+                    <View style={styles.bidActions}>
+                      <View style={styles.lockHint}>
+                        <Lock size={11} color={Colors.textLight} />
+                        <Text style={styles.lockHintText}>Identity revealed after payment</Text>
+                      </View>
+                      <Pressable
+                        style={({ pressed }) => [styles.acceptBtn, pressed && { opacity: 0.88 }]}
+                        onPress={() => handleAcceptBid(bid.id)}
+                      >
+                        <Text style={styles.acceptBtnText}>Accept & pay</Text>
+                      </Pressable>
                     </View>
                   )}
                 </View>
-
-                <Text style={styles.bidMessage}>{bid.message}</Text>
-
-                <View style={styles.bidDetails}>
-                  <View style={styles.bidDetailItem}>
-                    <IndianRupee size={14} color={Colors.primary} />
-                    <Text style={styles.bidPrice}>₹{bid.price.toLocaleString()}</Text>
-                  </View>
-                  <View style={styles.bidDetailItem}>
-                    <Clock size={14} color={Colors.secondaryLight} />
-                    <Text style={styles.bidDays}>{bid.daysToComplete} days</Text>
-                  </View>
-                </View>
-
-                {!bid.isAccepted && request.status === 'open' && (
-                  <Pressable
-                    style={({ pressed }) => [styles.acceptBtn, pressed && { opacity: 0.9 }]}
-                    onPress={() => handleAcceptBid(bid.id)}
-                  >
-                    <Text style={styles.acceptBtnText}>Accept Bid</Text>
-                  </Pressable>
-                )}
-              </View>
-            ))
+              );
+            })
           )}
         </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -178,231 +268,324 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  emptyState: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700' as const,
     color: Colors.text,
   },
-  scrollContent: {
+  scroll: {
     padding: 20,
   },
-  customerRow: {
+
+  // ── Top meta ──
+  topMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    gap: 12,
+    gap: 8,
+    marginBottom: 14,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.secondaryLight,
-    justifyContent: 'center',
+  outfitPill: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  avatarInitial: {
-    color: '#FFF',
-    fontWeight: '700' as const,
-    fontSize: 18,
-  },
-  customerInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  customerName: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  customerDate: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 5,
+    backgroundColor: Colors.maskedBg,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
   },
-  statusText: {
-    fontSize: 13,
+  outfitPillText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.maskedText,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  statusOpen: { backgroundColor: Colors.successBg },
+  statusProg: { backgroundColor: Colors.warnBg },
+  statusPillText: {
+    fontSize: 12,
     fontWeight: '600' as const,
   },
+  statusOpenText: { color: Colors.successText },
+  statusProgText: { color: Colors.warnText },
+
+  // ── Title / desc ──
   title: {
     fontSize: 22,
     fontWeight: '800' as const,
     color: Colors.text,
-    marginBottom: 12,
+    letterSpacing: -0.4,
     lineHeight: 28,
+    marginBottom: 10,
   },
   description: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.textSecondary,
-    lineHeight: 22,
+    lineHeight: 21,
     marginBottom: 20,
   },
+
+  // ── Details grid ──
   detailsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginBottom: 24,
   },
-  detailItem: {
-    backgroundColor: Colors.card,
+  detailCell: {
+    flex: 1,
+    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 14,
-    minWidth: 100,
-    flex: 1,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    gap: 4,
   },
   detailLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginBottom: 4,
+    fontSize: 11,
+    color: Colors.textLight,
+    fontWeight: '500' as const,
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '700' as const,
     color: Colors.text,
+    letterSpacing: -0.2,
   },
-  imagesSection: {
+  detailValueBudget: {
+    color: Colors.text,
+  },
+
+  // ── Section ──
+  section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800' as const,
+    fontSize: 17,
+    fontWeight: '700' as const,
     color: Colors.text,
+    letterSpacing: -0.2,
     marginBottom: 12,
   },
   imagesRow: {
-    gap: 12,
+    gap: 10,
   },
   refImage: {
-    width: 160,
-    height: 200,
+    width: 140,
+    height: 180,
     borderRadius: 12,
   },
-  bidsSection: {
-    marginTop: 4,
-  },
-  bidsHeader: {
+
+  // ── Masked notice ──
+  maskedNotice: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    gap: 10,
+    backgroundColor: Colors.maskedBg,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 24,
+    borderWidth: 0.5,
+    borderColor: Colors.maskedBorder,
   },
+  maskedNoticeText: { flex: 1, gap: 4 },
+  maskedNoticeTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.maskedText,
+  },
+  maskedNoticeBody: {
+    fontSize: 12,
+    color: Colors.maskedText,
+    lineHeight: 17,
+    opacity: 0.8,
+  },
+
+  // ── No bids ──
   noBids: {
     alignItems: 'center',
     paddingVertical: 40,
     gap: 8,
   },
-  noBidsText: {
+  noBidsTitle: {
     fontSize: 16,
     fontWeight: '700' as const,
     color: Colors.text,
   },
-  noBidsSubtext: {
+  noBidsBody: {
     fontSize: 13,
     color: Colors.textSecondary,
   },
+
+  // ── Bid card ──
   bidCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    gap: 12,
   },
-  bidAccepted: {
-    borderColor: Colors.success + '40',
-    backgroundColor: Colors.success + '05',
+  bidCardTop: {
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+  },
+  bidCardAccepted: {
+    borderColor: Colors.successMid,
+    backgroundColor: Colors.successBg,
+  },
+  topBidBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.ink,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  topBidBadgeText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textInverse,
   },
   bidHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  bidPartner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  bidAvatar: {
+  maskedAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  bidPartnerName: {
+  maskedAvatarText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textLight,
+  },
+  bidHeaderInfo: { flex: 1, gap: 4 },
+  bidCode: {
     fontSize: 15,
     fontWeight: '700' as const,
     color: Colors.text,
   },
-  bidRating: {
+  starRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
+    gap: 3,
   },
-  bidRatingText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.text,
+  starShape: {
+    width: 10,
+    height: 10,
+    // star via clip-path not available in RN; use filled squares as proxy
+    borderRadius: 2,
   },
-  acceptedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.success + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  acceptedText: {
+  ratingNum: {
     fontSize: 12,
     fontWeight: '600' as const,
-    color: Colors.success,
+    color: Colors.textSecondary,
+    marginLeft: 4,
+  },
+  acceptedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.successBg,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  acceptedPillText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.successText,
   },
   bidMessage: {
     fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 20,
-    marginBottom: 14,
   },
-  bidDetails: {
-    flexDirection: 'row',
-    gap: 20,
-    marginBottom: 14,
-  },
-  bidDetailItem: {
+  bidMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 12,
+  },
+  bidMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  bidMetaDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: Colors.border,
   },
   bidPrice: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.primary,
+    fontSize: 17,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
   },
   bidDays: {
     fontSize: 14,
     fontWeight: '600' as const,
-    color: Colors.secondaryLight,
+    color: Colors.textSecondary,
+  },
+
+  // ── Contact block warning ──
+  contactBlockWarn: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.warnBg,
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: Colors.warnMid,
+  },
+  contactBlockText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.warnText,
+    lineHeight: 17,
+  },
+
+  // ── Bid actions ──
+  bidActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  lockHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  lockHintText: {
+    fontSize: 11,
+    color: Colors.textLight,
   },
   acceptBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
+    backgroundColor: Colors.ink,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
   acceptBtnText: {
-    color: '#FFF',
-    fontSize: 15,
+    color: Colors.textInverse,
+    fontSize: 14,
     fontWeight: '700' as const,
   },
 });

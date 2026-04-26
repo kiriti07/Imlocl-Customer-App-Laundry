@@ -1,33 +1,34 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Image } from 'expo-image';
-import { MessageSquare, IndianRupee, Calendar } from 'lucide-react-native';
+import { Scissors, Clock, ShieldCheck } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 
 interface RequestCardProps {
   title: string;
   outfitType: string;
   budget: number;
-  customerName: string;
-  customerAvatar?: string;
+  customerName: string;          // kept in props but NOT rendered (masked)
+  customerAvatar?: string;       // kept in props but NOT rendered (masked)
   bidCount: number;
   status: string;
   createdAt: string;
+  maskedCode?: string;           // e.g. "T·A1" — shown instead of real name
   onPress: () => void;
+  onBid?: () => void;
 }
 
 export default React.memo(function RequestCard({
   title,
   outfitType,
   budget,
-  customerName,
-  customerAvatar,
   bidCount,
   status,
   createdAt,
+  maskedCode = 'Customer',
   onPress,
+  onBid,
 }: RequestCardProps) {
-  const statusColor = status === 'open' ? Colors.success : status === 'in_progress' ? Colors.warm : Colors.textLight;
+  const isOpen = status === 'open';
 
   return (
     <Pressable
@@ -35,41 +36,51 @@ export default React.memo(function RequestCard({
       onPress={onPress}
       testID="request-card"
     >
-      <View style={styles.header}>
-        <View style={styles.avatarRow}>
-          {customerAvatar ? (
-            <Image source={{ uri: customerAvatar }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarText}>{customerName[0]}</Text>
-            </View>
-          )}
-          <View style={styles.headerInfo}>
-            <Text style={styles.customerName}>{customerName}</Text>
-            <Text style={styles.date}>{createdAt}</Text>
-          </View>
+      {/* Top row — type pill + status */}
+      <View style={styles.topRow}>
+        <View style={styles.typePill}>
+          <Scissors size={11} color={Colors.maskedText} />
+          <Text style={styles.typePillText}>{outfitType}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {status === 'open' ? 'Open' : status === 'in_progress' ? 'In Progress' : status}
+        <View style={[styles.statusPill, isOpen ? styles.statusOpen : styles.statusProg]}>
+          <Text style={[styles.statusText, isOpen ? styles.statusOpenText : styles.statusProgText]}>
+            {isOpen ? 'Open' : 'In progress'}
           </Text>
         </View>
       </View>
 
+      {/* Title */}
       <Text style={styles.title} numberOfLines={2}>{title}</Text>
 
-      <View style={styles.detailsRow}>
-        <View style={styles.typeBadge}>
-          <Text style={styles.typeText}>{outfitType}</Text>
+      {/* Masked poster info */}
+      <View style={styles.posterRow}>
+        <View style={styles.maskedDot} />
+        <Text style={styles.posterText}>Anonymous customer</Text>
+        <Text style={styles.dotSep}>·</Text>
+        <Clock size={11} color={Colors.textLight} />
+        <Text style={styles.posterDate}>{createdAt}</Text>
+      </View>
+
+      {/* Footer — budget + bids + CTA */}
+      <View style={styles.footer}>
+        <View>
+          <Text style={styles.budget}>₹{budget.toLocaleString()}</Text>
+          <Text style={styles.bidCount}>{bidCount} bid{bidCount !== 1 ? 's' : ''}</Text>
         </View>
-        <View style={styles.detailItem}>
-          <IndianRupee size={14} color={Colors.primary} />
-          <Text style={styles.budgetText}>₹{budget.toLocaleString()}</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <MessageSquare size={14} color={Colors.secondaryLight} />
-          <Text style={styles.bidText}>{bidCount} bids</Text>
-        </View>
+        {onBid && isOpen && (
+          <Pressable
+            style={({ pressed }) => [styles.bidBtn, pressed && { opacity: 0.85 }]}
+            onPress={onBid}
+          >
+            <Text style={styles.bidBtnText}>Place bid</Text>
+          </Pressable>
+        )}
+      </View>
+
+      {/* Masked shield hint */}
+      <View style={styles.shieldHint}>
+        <ShieldCheck size={11} color={Colors.maskedText} />
+        <Text style={styles.shieldText}>Identity hidden until connection</Text>
       </View>
     </Pressable>
   );
@@ -77,103 +88,132 @@ export default React.memo(function RequestCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.card,
+    backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    gap: 10,
   },
   pressed: {
-    opacity: 0.95,
-    transform: [{ scale: 0.98 }],
+    opacity: 0.93,
+    transform: [{ scale: 0.985 }],
   },
-  header: {
+
+  // ── Top row ──
+  topRow: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  avatarRow: {
+  typePill: {
     flexDirection: 'row' as const,
     alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.secondaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: '#FFF',
-    fontWeight: '700' as const,
-    fontSize: 15,
-  },
-  headerInfo: {
-    gap: 2,
-  },
-  customerName: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.text,
-  },
-  date: {
-    fontSize: 12,
-    color: Colors.textLight,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
+    gap: 5,
+    backgroundColor: Colors.maskedBg,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
   },
+  typePillText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.maskedText,
+  },
+  statusPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusOpen: { backgroundColor: Colors.successBg },
+  statusProg: { backgroundColor: Colors.warnBg },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600' as const,
   },
+  statusOpenText: { color: Colors.successText },
+  statusProgText: { color: Colors.warnText },
+
+  // ── Title ──
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginBottom: 12,
-    lineHeight: 22,
+    lineHeight: 21,
+    letterSpacing: -0.2,
   },
-  detailsRow: {
+
+  // ── Masked poster ──
+  posterRow: {
     flexDirection: 'row' as const,
     alignItems: 'center',
-    gap: 12,
+    gap: 5,
   },
-  typeBadge: {
-    backgroundColor: Colors.stitchingLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+  maskedDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
   },
-  typeText: {
+  posterText: {
     fontSize: 12,
-    fontWeight: '600' as const,
-    color: Colors.stitching,
+    color: Colors.textLight,
+    fontWeight: '500' as const,
   },
-  detailItem: {
+  dotSep: {
+    fontSize: 12,
+    color: Colors.border,
+  },
+  posterDate: {
+    fontSize: 12,
+    color: Colors.textLight,
+  },
+
+  // ── Footer ──
+  footer: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  budget: {
+    fontSize: 17,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  bidCount: {
+    fontSize: 12,
+    color: Colors.textLight,
+    marginTop: 2,
+  },
+  bidBtn: {
+    backgroundColor: Colors.ink,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 20,
+  },
+  bidBtnText: {
+    color: Colors.textInverse,
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+
+  // ── Shield hint ──
+  shieldHint: {
     flexDirection: 'row' as const,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
-  budgetText: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: Colors.primary,
-  },
-  bidText: {
-    fontSize: 13,
-    color: Colors.secondaryLight,
+  shieldText: {
+    fontSize: 11,
+    color: Colors.maskedText,
     fontWeight: '500' as const,
   },
 });
