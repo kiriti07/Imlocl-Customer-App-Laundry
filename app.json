@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Locl",
-    "slug": "locl-laundry-app",
+    "name": "Locl Delivery",
+    "slug": "locl-stitch",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -45,7 +45,7 @@
         "origin": "https://rork.com/"
       },
       "eas": {
-        "projectId": "3907231c-afc3-47ef-93bc-b6d2235ab740"
+        "projectId": "7dd1becd-6d54-4ff9-bebb-418158f37a22"
       }
     },
     "owner": "kiriti7"
